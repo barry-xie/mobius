@@ -47,6 +47,31 @@ function toNumberTextBinding(value) {
   return num == null ? null : String(num);
 }
 
+function rewriteAssignmentUrl(rawUrl) {
+  if (!rawUrl) return '';
+  try {
+    const u = new URL(rawUrl);
+    u.hostname = 'canvas.vt.edu';
+    u.pathname = u.pathname
+      .replace(/\/courses\/(\d{11})(\d+)/, '/courses/$2')
+      .replace(/\/assignments\/(.{5})([^/?#]*)/, '/assignments/$2');
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+function cleanCanvasData(data) {
+  const courses = Array.isArray(data?.courses) ? data.courses : [];
+  for (const course of courses) {
+    const assignments = Array.isArray(course?.assignments) ? course.assignments : [];
+    for (const assignment of assignments) {
+      assignment.html_url = rewriteAssignmentUrl(assignment.html_url);
+    }
+  }
+  return data;
+}
+
 function getSnowflakeConfig(options = {}) {
   const tokenCandidate = (options.snowflakeToken || process.env.SNOWFLAKE_TOKEN || '').trim();
   const enabled = options.uploadToSnowflake !== undefined
@@ -433,7 +458,7 @@ async function run(options = {}) {
   const outputPath = options.outputPath || 'canvas_data.json';
 
   const client = createCanvasClient(token, apiBase);
-  const result = await client.fetchCanvasData();
+  const result = cleanCanvasData(await client.fetchCanvasData());
 
   await uploadCanvasDataToSnowflake(result, { ...options, canvasToken: token });
 
@@ -444,7 +469,7 @@ async function run(options = {}) {
   return result;
 }
 
-module.exports = { run, createCanvasClient, uploadCanvasDataToSnowflake };
+module.exports = { run, createCanvasClient, uploadCanvasDataToSnowflake, rewriteAssignmentUrl, cleanCanvasData };
 
 if (require.main === module) {
   run()

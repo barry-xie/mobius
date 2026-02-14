@@ -207,8 +207,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
 
-        const fallback = data.fallback_used ? ' | fallback: yes' : '';
-        document.getElementById('status').textContent = `Loaded ${data.courses?.length ?? 0} courses (active: ${data.active_course_count ?? 0}${fallback}).`;
+        document.getElementById('status').textContent = `Loaded ${data.courses?.length ?? 0} courses (active: ${data.active_course_count ?? 0}).`;
         buildExplorer(data);
       } catch (err) {
         document.getElementById('status').textContent = err.message;
@@ -224,8 +223,7 @@
     (function restoreFromStorage() {
       const cached = loadFromStorage();
       if (cached && cached.courses && cached.courses.length > 0) {
-        const fallback = cached.fallback_used ? ' | fallback: yes' : '';
-        document.getElementById('status').textContent = `Loaded ${cached.courses.length} courses (active: ${cached.active_course_count ?? cached.courses.length}${fallback}) from cache.`;
+        document.getElementById('status').textContent = `Loaded ${cached.courses.length} courses (active: ${cached.active_course_count ?? cached.courses.length}) from cache.`;
         buildExplorer(cached);
       }
     })();
