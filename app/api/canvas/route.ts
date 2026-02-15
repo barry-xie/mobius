@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const { run } = await import("@/scripts/getCanvas");
-    const result = (await run({ token, writeFile: true })) as { classes?: { courseId?: string; className: string }[]; classNames?: string[] };
+    const result = (await run({ token, writeFile: false })) as { classes?: { courseId?: string; className: string }[]; classNames?: string[] };
     const classes = Array.isArray(result?.classes)
       ? result.classes.filter((c) => c && typeof c.className === "string")
       : [];

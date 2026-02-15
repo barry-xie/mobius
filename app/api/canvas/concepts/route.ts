@@ -1,114 +1,68 @@
 import { NextResponse } from "next/server";
-import { spawnSync } from "child_process";
-import fs from "fs";
-import path from "path";
-
-const ROOT = path.resolve(process.cwd());
-const INGESTION_DIR = path.join(ROOT, "ingestion");
-const CLASSNAMES_JSON_PATH = path.join(ROOT, "public", "classNames.json");
+export const runtime = "nodejs";
 
 interface ConceptualUnitsResult {
   courseId: string;
   courseName: string;
   units: unknown[];
-  updatedAt?: string;
+  warning?: string;
 }
 
-const PYTHON_CANDIDATES: Array<{ command: string; argsPrefix: string[] }> = [
-  { command: "python", argsPrefix: [] },
-  { command: "python3", argsPrefix: [] },
-  { command: "py", argsPrefix: ["-3"] },
-];
-
-function parseConceptPayload(rawOutput: string): ConceptualUnitsResult {
-  const trimmed = rawOutput.trim();
-  if (!trimmed) {
-    throw new Error("Concept generation returned empty output");
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    const match = trimmed.match(/(\{[\s\S]*\})\s*$/);
-    if (!match) throw new Error("Concept generation returned invalid JSON");
-    parsed = JSON.parse(match[1]);
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Concept generation returned unexpected payload");
-  }
-
-  const result = parsed as Record<string, unknown>;
-  return {
-    courseId: typeof result.courseId === "string" ? result.courseId : "",
-    courseName: typeof result.courseName === "string" ? result.courseName : "",
-    units: Array.isArray(result.units) ? result.units : [],
-    updatedAt: typeof result.updatedAt === "string" ? result.updatedAt : undefined,
-  };
+interface FailedCourse {
+  courseId: string;
+  error: string;
 }
 
-function runConceptGeneration(courseId: string, courseName = ""): ConceptualUnitsResult {
-  const trimmedId = courseId.trim();
-  if (!trimmedId) {
-    throw new Error("Missing courseId");
+function toCourseIds(body: Record<string, unknown>): string[] {
+  const singleCourseId = body?.courseId;
+  if (Array.isArray(body?.courseIds)) {
+    return body.courseIds
+      .map((id: unknown) => String(id || "").trim())
+      .filter(Boolean);
   }
+  return singleCourseId != null
+    ? [String(singleCourseId).trim()].filter(Boolean)
+    : [];
+}
 
-  const trimmedName = courseName.trim();
-  let lastError = "Unable to execute concept generation";
-
-  for (const candidate of PYTHON_CANDIDATES) {
-    const args = [
-      ...candidate.argsPrefix,
-      "run_concept_generation.py",
-      "--course-id",
-      trimmedId,
-      ...(trimmedName ? ["--course-name", trimmedName] : []),
-      "--json",
-    ];
-
-    const result = spawnSync(candidate.command, args, {
-      cwd: INGESTION_DIR,
-      encoding: "utf8",
-      timeout: 10 * 60 * 1000,
-    });
-
-    if (result.error) {
-      if ((result.error as NodeJS.ErrnoException).code === "ENOENT") {
-        continue;
-      }
-      throw result.error;
+function toCourseNameMap(body: Record<string, unknown>): Map<string, string> {
+  const map = new Map<string, string>();
+  const providedCourses = Array.isArray(body?.courses) ? body.courses : [];
+  for (const course of providedCourses) {
+    if (!course || typeof course !== "object") continue;
+    const row = course as Record<string, unknown>;
+    const courseId = typeof row.courseId === "string" ? row.courseId.trim() : "";
+    const className = typeof row.className === "string" ? row.className.trim() : "";
+    if (courseId) {
+      map.set(courseId, className);
     }
-
-    if (result.status !== 0) {
-      const stderr = (result.stderr || "").trim();
-      lastError = stderr || `Concept generation failed for course ${trimmedId}`;
-      throw new Error(lastError);
-    }
-
-    return parseConceptPayload(result.stdout || "");
   }
-
-  throw new Error(lastError);
+  return map;
 }
 
-function writeSelectedCoursesToClassNamesJson(courses: ConceptualUnitsResult[]): void {
-  const classes = courses.map((course) => ({
-    courseId: course.courseId,
-    className: course.courseName?.trim() || course.courseId,
-    units: Array.isArray(course.units) ? course.units : [],
-  }));
+function toTimeoutMs(): number {
+  const parsed = Number(process.env.CONCEPT_GENERATION_TIMEOUT_MS);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 600000;
+  return Math.floor(parsed);
+}
 
-  const classNames = [...new Set(classes.map((course) => course.className).filter(Boolean))];
-  const payload = {
-    classes,
-    classNames,
-    updatedAt: new Date().toISOString(),
-  };
+async function loadConceptScripts() {
+  const mod = await import("@/scripts/listConceptualUnits");
+  const run = (mod.run ?? mod.default?.run) as
+    | ((options: Record<string, unknown>) => Promise<ConceptualUnitsResult>)
+    | undefined;
+  const runMany = (mod.runMany ?? mod.default?.runMany) as
+    | ((options: Record<string, unknown>) => Promise<ConceptualUnitsResult[]>)
+    | undefined;
+  const writeSelected = (mod.writeSelectedCoursesToClassNamesJson ?? mod.default?.writeSelectedCoursesToClassNamesJson) as
+    | ((courses: ConceptualUnitsResult[]) => void)
+    | undefined;
 
-  const dir = path.dirname(CLASSNAMES_JSON_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CLASSNAMES_JSON_PATH, JSON.stringify(payload, null, 2), "utf8");
+  if (!run || !runMany || !writeSelected) {
+    throw new Error("Concept scripts are not available");
+  }
+
+  return { run, runMany, writeSelected };
 }
 
 export async function GET(request: Request) {
@@ -117,7 +71,13 @@ export async function GET(request: Request) {
   const courseName = searchParams.get("courseName") ?? "";
 
   try {
-    const data = runConceptGeneration(courseId, courseName);
+    const { run } = await loadConceptScripts();
+    const data = await run({
+      courseId,
+      className: courseName,
+      writeFile: false,
+      timeoutMs: toTimeoutMs(),
+    });
     return NextResponse.json({ courseId: data.courseId || null, courseName: data.courseName, units: data.units });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to run concept generation";
@@ -127,46 +87,89 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const courseId = body?.courseId;
-    const courseIds: string[] = Array.isArray(body?.courseIds)
-      ? body.courseIds.map((id: unknown) => String(id).trim()).filter(Boolean)
-      : courseId != null
-        ? [String(courseId).trim()].filter(Boolean)
-        : [];
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const courseIds = toCourseIds(body);
     if (courseIds.length === 0) {
       return NextResponse.json({ error: "Missing courseId or courseIds" }, { status: 400 });
     }
 
-    const providedCourses = Array.isArray(body?.courses)
-      ? body.courses
-      : [];
+    const nameByCourseId = toCourseNameMap(body);
+    const timeoutMs = toTimeoutMs();
+    const { run, writeSelected } = await loadConceptScripts();
 
-    const nameByCourseId = new Map<string, string>();
-    for (const course of providedCourses) {
-      if (!course || typeof course !== "object") continue;
-      const record = course as Record<string, unknown>;
-      const id = typeof record.courseId === "string" ? record.courseId.trim() : "";
-      const name = typeof record.className === "string" ? record.className.trim() : "";
-      if (id) nameByCourseId.set(id, name);
-    }
-
-    const courses: ConceptualUnitsResult[] = courseIds.map((id: string) =>
-      runConceptGeneration(id, nameByCourseId.get(id) ?? "")
+    const settled = await Promise.allSettled(
+      courseIds.map((id) =>
+        run({
+          courseId: id,
+          className: nameByCourseId.get(id) ?? "",
+          writeFile: false,
+          timeoutMs,
+        })
+      )
     );
 
-    writeSelectedCoursesToClassNamesJson(courses);
+    const courses: ConceptualUnitsResult[] = [];
+    const failedCourses: FailedCourse[] = [];
+    settled.forEach((result, index) => {
+      const courseId = courseIds[index];
+      if (result.status === "fulfilled") {
+        courses.push(result.value);
+        return;
+      }
+      failedCourses.push({
+        courseId,
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason || "Unknown error"),
+      });
+    });
 
-    if (courses.length === 1) {
+    courses.forEach((course) => {
+      if (!Array.isArray(course.units) || course.units.length === 0) {
+        failedCourses.push({
+          courseId: course.courseId,
+          error: "No conceptual units returned yet",
+        });
+      }
+    });
+
+    if (failedCourses.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Concept preparation is still in progress or failed for one or more courses",
+          failedCourses,
+        },
+        { status: 500 }
+      );
+    }
+
+    const coursesById = new Map(courses.map((course) => [course.courseId, course]));
+    const selectedCourses = courseIds.map((id) => {
+      const generated = coursesById.get(id);
+      if (generated) return generated;
+      return {
+        courseId: id,
+        courseName: nameByCourseId.get(id) || id,
+        units: [],
+      } satisfies ConceptualUnitsResult;
+    });
+
+    writeSelected(selectedCourses);
+
+    if (selectedCourses.length === 1) {
       return NextResponse.json({
-        courseId: courses[0].courseId,
-        courseName: courses[0].courseName,
-        units: courses[0].units,
+        courseId: selectedCourses[0].courseId,
+        courseName: selectedCourses[0].courseName,
+        units: selectedCourses[0].units,
+        failedCourses,
       });
     }
 
     return NextResponse.json({
-      courses: courses.map((c) => ({ courseId: c.courseId, courseName: c.courseName, units: c.units })),
+      courses: selectedCourses.map((course) => ({
+        courseId: course.courseId,
+        courseName: course.courseName,
+        units: course.units,
+      })),
+      failedCourses,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to run concept generation";
