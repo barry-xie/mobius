@@ -148,6 +148,53 @@ def ensure_rag_schema() -> None:
     )
     _add_chunk_traceability_columns_if_missing()
 
+    # Conceptual lesson plan: unit -> topic -> subtopic (for scoped generation)
+    execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units (
+            unit_id STRING PRIMARY KEY,
+            course_id STRING,
+            unit_name STRING,
+            sort_order INT DEFAULT 0,
+            created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+        )
+        """
+    )
+    execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics (
+            topic_id STRING PRIMARY KEY,
+            unit_id STRING,
+            topic_name STRING,
+            sort_order INT DEFAULT 0,
+            created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+        )
+        """
+    )
+    execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.subtopics (
+            subtopic_id STRING PRIMARY KEY,
+            topic_id STRING,
+            subtopic_name STRING,
+            sort_order INT DEFAULT 0,
+            created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+        )
+        """
+    )
+    execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.chunk_assignments (
+            chunk_id STRING,
+            unit_id STRING,
+            topic_id STRING,
+            subtopic_id STRING,
+            created_at TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+            PRIMARY KEY (chunk_id, unit_id, topic_id, subtopic_id)
+        )
+        """
+    )
+
 
 def _add_chunk_traceability_columns_if_missing() -> None:
     """Add human-readable source columns to document_chunks if table existed from before."""
@@ -187,6 +234,73 @@ def insert_module(module_id: str, course_id: str, module_name: str) -> None:
         USING (SELECT ? AS module_id, ? AS course_id, ? AS module_name) s ON t.module_id = s.module_id
         WHEN MATCHED THEN UPDATE SET t.module_name = s.module_name, t.course_id = s.course_id
         WHEN NOT MATCHED THEN INSERT (module_id, course_id, module_name) VALUES (s.module_id, s.course_id, s.module_name)
+        """,
+        bindings=bind,
+    )
+
+
+def insert_unit(unit_id: str, course_id: str, unit_name: str, sort_order: int = 0) -> None:
+    bind = {**_bind(1, unit_id), **_bind(2, course_id), **_bind(3, unit_name), **_bind(4, str(sort_order))}
+    execute(
+        f"""
+        MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units t
+        USING (SELECT ? AS unit_id, ? AS course_id, ? AS unit_name, ? AS sort_order) s ON t.unit_id = s.unit_id
+        WHEN MATCHED THEN UPDATE SET t.unit_name = s.unit_name, t.course_id = s.course_id, t.sort_order = s.sort_order
+        WHEN NOT MATCHED THEN INSERT (unit_id, course_id, unit_name, sort_order) VALUES (s.unit_id, s.course_id, s.unit_name, s.sort_order)
+        """,
+        bindings=bind,
+    )
+
+
+def insert_topic(topic_id: str, unit_id: str, topic_name: str, sort_order: int = 0) -> None:
+    bind = {**_bind(1, topic_id), **_bind(2, unit_id), **_bind(3, topic_name), **_bind(4, str(sort_order))}
+    execute(
+        f"""
+        MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics t
+        USING (SELECT ? AS topic_id, ? AS unit_id, ? AS topic_name, ? AS sort_order) s ON t.topic_id = s.topic_id
+        WHEN MATCHED THEN UPDATE SET t.topic_name = s.topic_name, t.unit_id = s.unit_id, t.sort_order = s.sort_order
+        WHEN NOT MATCHED THEN INSERT (topic_id, unit_id, topic_name, sort_order) VALUES (s.topic_id, s.unit_id, s.topic_name, s.sort_order)
+        """,
+        bindings=bind,
+    )
+
+
+def insert_subtopic(subtopic_id: str, topic_id: str, subtopic_name: str, sort_order: int = 0) -> None:
+    bind = {**_bind(1, subtopic_id), **_bind(2, topic_id), **_bind(3, subtopic_name), **_bind(4, str(sort_order))}
+    execute(
+        f"""
+        MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.subtopics t
+        USING (SELECT ? AS subtopic_id, ? AS topic_id, ? AS subtopic_name, ? AS sort_order) s ON t.subtopic_id = s.subtopic_id
+        WHEN MATCHED THEN UPDATE SET t.subtopic_name = s.subtopic_name, t.topic_id = s.topic_id, t.sort_order = s.sort_order
+        WHEN NOT MATCHED THEN INSERT (subtopic_id, topic_id, subtopic_name, sort_order) VALUES (s.subtopic_id, s.topic_id, s.subtopic_name, s.sort_order)
+        """,
+        bindings=bind,
+    )
+
+
+def upsert_chunk_assignment(chunk_id: str, unit_id: str, topic_id: str = "", subtopic_id: str = "") -> None:
+    """Assign a chunk to a (unit, topic, subtopic). Use '' for topic_id/subtopic_id when not applicable."""
+    tid = topic_id or ""
+    sid = subtopic_id or ""
+    bind = {**_bind(1, chunk_id), **_bind(2, unit_id), **_bind(3, tid), **_bind(4, sid)}
+    execute(
+        f"""
+        MERGE INTO {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.chunk_assignments t
+        USING (SELECT ? AS chunk_id, ? AS unit_id, ? AS topic_id, ? AS subtopic_id) s
+        ON t.chunk_id = s.chunk_id AND t.unit_id = s.unit_id AND t.topic_id = s.topic_id AND t.subtopic_id = s.subtopic_id
+        WHEN NOT MATCHED THEN INSERT (chunk_id, unit_id, topic_id, subtopic_id) VALUES (s.chunk_id, s.unit_id, s.topic_id, s.subtopic_id)
+        """,
+        bindings=bind,
+    )
+
+
+def delete_chunk_assignments_for_course(course_id: str) -> None:
+    """Remove all chunk_assignments for chunks belonging to this course (so we can re-tag)."""
+    bind = _bind(1, course_id)
+    execute(
+        f"""
+        DELETE FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.chunk_assignments
+        WHERE chunk_id IN (SELECT chunk_id FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks WHERE course_id = ?)
         """,
         bindings=bind,
     )
@@ -269,6 +383,137 @@ def generate_chunk_id() -> str:
     return str(uuid.uuid4())
 
 
+def get_course_name(course_id: str) -> str:
+    """Return course_name from RAG courses table for display; empty string if not found."""
+    bind = _bind(1, course_id)
+    sql = f"""
+    SELECT COALESCE(course_name, '') FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.courses
+    WHERE course_id = ?
+    LIMIT 1
+    """
+    data = _execute_and_fetch(sql, bind)
+    if not data or not data[0]:
+        return ""
+    return (data[0][0] or "").strip()
+
+
+def get_syllabus_text(course_id: str) -> str | None:
+    """Return raw_text of the syllabus document for the course, if any."""
+    bind = _bind(1, course_id)
+    sql = f"""
+    SELECT raw_text FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.documents
+    WHERE course_id = ? AND document_type = 'syllabus'
+    LIMIT 1
+    """
+    data = _execute_and_fetch(sql, bind)
+    if not data or not data[0]:
+        return None
+    return (data[0][0] or "").strip() or None
+
+
+def get_chunks_for_course(course_id: str) -> list[dict[str, Any]]:
+    """Return all chunks for a course (chunk_id, text, document_title) for tagging."""
+    bind = _bind(1, course_id)
+    sql = f"""
+    SELECT chunk_id, text, COALESCE(document_title, '') AS document_title
+    FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks
+    WHERE course_id = ?
+    ORDER BY chunk_id
+    """
+    data = _execute_and_fetch(sql, bind)
+    columns = ["chunk_id", "text", "document_title"]
+    return [_row_to_dict(columns, row) for row in data]
+
+
+def get_lesson_plan(course_id: str) -> dict[str, Any]:
+    """Return units with nested topics and subtopics for the course."""
+    bind = _bind(1, course_id)
+    units_sql = f"""
+    SELECT unit_id, unit_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units
+    WHERE course_id = ? ORDER BY sort_order, unit_id
+    """
+    units_data = _execute_and_fetch(units_sql, bind)
+    plan = {"units": []}
+    for row in units_data:
+        uid, uname, order = row[0], row[1] or "", row[2] or 0
+        u = {"unit_id": uid, "unit_name": uname, "sort_order": order, "topics": []}
+        tbind = _bind(1, uid)
+        topics_sql = f"""
+        SELECT topic_id, topic_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics
+        WHERE unit_id = ? ORDER BY sort_order, topic_id
+        """
+        topics_data = _execute_and_fetch(topics_sql, tbind)
+        for trow in topics_data:
+            tid, tname, torder = trow[0], trow[1] or "", trow[2] or 0
+            topic = {"topic_id": tid, "topic_name": tname, "sort_order": torder, "subtopics": []}
+            sbind = _bind(1, tid)
+            sub_sql = f"""
+            SELECT subtopic_id, subtopic_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.subtopics
+            WHERE topic_id = ? ORDER BY sort_order, subtopic_id
+            """
+            sub_data = _execute_and_fetch(sub_sql, sbind)
+            for srow in sub_data:
+                topic["subtopics"].append({
+                    "subtopic_id": srow[0],
+                    "subtopic_name": (srow[1] or "").strip(),
+                    "sort_order": srow[2] or 0,
+                })
+            u["topics"].append(topic)
+        plan["units"].append(u)
+    return plan
+
+
+def list_conceptual_units(course_id: str) -> list[dict[str, Any]]:
+    """
+    Return conceptual units (lesson plan) with nested topics/subtopics and chunk counts
+    from chunk_assignments. Empty list if no lesson plan.
+    """
+    plan = get_lesson_plan(course_id)
+    units_plan = plan.get("units") or []
+    if not units_plan:
+        return []
+
+    # Count assignments per (unit_id, topic_id, subtopic_id)
+    bind = _bind(1, course_id)
+    sql = f"""
+    SELECT a.unit_id, COALESCE(a.topic_id, '') AS topic_id, COALESCE(a.subtopic_id, '') AS subtopic_id, COUNT(*) AS cnt
+    FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.chunk_assignments a
+    INNER JOIN {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks c ON c.chunk_id = a.chunk_id
+    WHERE c.course_id = ?
+    GROUP BY a.unit_id, a.topic_id, a.subtopic_id
+    """
+    rows = _execute_and_fetch(sql, bind)
+    count_map: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        try:
+            cnt = int(row[3]) if len(row) > 3 and row[3] is not None else 0
+        except (TypeError, ValueError):
+            cnt = 0
+        count_map[(row[0], row[1], row[2])] = cnt
+
+    result: list[dict[str, Any]] = []
+    for u in units_plan:
+        uid = u.get("unit_id") or ""
+        uname = u.get("unit_name") or ""
+        unit_chunks = sum(v for (uid_k, _t, _s), v in count_map.items() if uid_k == uid)
+        topics_out: list[dict[str, Any]] = []
+        for t in u.get("topics") or []:
+            tid = t.get("topic_id") or ""
+            tname = t.get("topic_name") or ""
+            topic_chunks = sum(v for (uid_k, tid_k, _s), v in count_map.items() if uid_k == uid and tid_k == tid)
+            subtopics_out = []
+            for s in t.get("subtopics") or []:
+                if not isinstance(s, dict):
+                    continue
+                sid = s.get("subtopic_id") or ""
+                sname = s.get("subtopic_name") or ""
+                sub_chunks = count_map.get((uid, tid, sid), 0)
+                subtopics_out.append({"subtopic_id": sid, "subtopic_name": sname, "chunk_count": sub_chunks})
+            topics_out.append({"topic_id": tid, "topic_name": tname, "chunk_count": topic_chunks, "subtopics": subtopics_out})
+        result.append({"unit_id": uid, "unit_name": uname, "chunk_count": unit_chunks, "topics": topics_out})
+    return result
+
+
 def list_units(course_id: str) -> list[dict[str, Any]]:
     """
     Return the course's units (modules) with human-readable names and document/chunk counts.
@@ -298,29 +543,67 @@ def retrieve_chunks(
     query_embedding: list[float],
     top_k: int = 8,
     similarity_threshold: float = 0.25,
+    unit_id: str = "",
+    topic_id: str = "",
+    subtopic_id: str = "",
 ) -> list[dict[str, Any]]:
     """
     Return list of chunks with chunk_id, text, document_title, course_name, module_name, score.
-    Requires at least 2 chunks above threshold for useful RAG; caller can check len >= 2.
+    Optionally restrict to chunks that have an assignment for (unit_id, topic_id, subtopic_id).
+    Use '' for any scope to leave it unconstrained. Requires at least 2 chunks above threshold
+    for useful RAG; caller can check len >= 2.
     """
     emb_str = json.dumps(query_embedding)
-    bind = {
-        "1": {"type": "TEXT", "value": emb_str},
-        "2": {"type": "TEXT", "value": course_id},
-    }
-    sql = f"""
-    SELECT * FROM (
-        SELECT chunk_id, document_id, course_id, module_id, text,
-               COALESCE(document_title, '') AS document_title,
-               COALESCE(course_name, '') AS course_name,
-               COALESCE(module_name, '') AS module_name,
-               VECTOR_COSINE_SIMILARITY(embedding, PARSE_JSON(?)::VECTOR(FLOAT, 768)) AS score
-        FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks
-        WHERE course_id = ?
-    ) WHERE score >= {similarity_threshold}
-    ORDER BY score DESC
-    LIMIT {top_k}
-    """
+    uid = unit_id or ""
+    tid = topic_id or ""
+    sid = subtopic_id or ""
+    scoped = bool(uid or tid or sid)
+
+    if not scoped:
+        bind = {"1": {"type": "TEXT", "value": emb_str}, "2": {"type": "TEXT", "value": course_id}}
+        sql = f"""
+        SELECT * FROM (
+            SELECT chunk_id, document_id, course_id, module_id, text,
+                   COALESCE(document_title, '') AS document_title,
+                   COALESCE(course_name, '') AS course_name,
+                   COALESCE(module_name, '') AS module_name,
+                   VECTOR_COSINE_SIMILARITY(embedding, PARSE_JSON(?)::VECTOR(FLOAT, 768)) AS score
+            FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks
+            WHERE course_id = ?
+        ) WHERE score >= {similarity_threshold}
+        ORDER BY score DESC
+        LIMIT {top_k}
+        """
+    else:
+        bind = {
+            "1": {"type": "TEXT", "value": emb_str},
+            "2": {"type": "TEXT", "value": course_id},
+            "3": {"type": "TEXT", "value": uid},
+            "4": {"type": "TEXT", "value": uid},
+            "5": {"type": "TEXT", "value": tid},
+            "6": {"type": "TEXT", "value": tid},
+            "7": {"type": "TEXT", "value": sid},
+            "8": {"type": "TEXT", "value": sid},
+        }
+        sql = f"""
+        SELECT * FROM (
+            SELECT d.chunk_id, d.document_id, d.course_id, d.module_id, d.text,
+                   COALESCE(d.document_title, '') AS document_title,
+                   COALESCE(d.course_name, '') AS course_name,
+                   COALESCE(d.module_name, '') AS module_name,
+                   VECTOR_COSINE_SIMILARITY(d.embedding, PARSE_JSON(?)::VECTOR(FLOAT, 768)) AS score
+            FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.document_chunks d
+            WHERE d.course_id = ?
+              AND d.chunk_id IN (
+                SELECT a.chunk_id FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.chunk_assignments a
+                WHERE (? = '' OR a.unit_id = ?)
+                  AND (? = '' OR a.topic_id = ?)
+                  AND (? = '' OR a.subtopic_id = ?)
+              )
+        ) WHERE score >= {similarity_threshold}
+        ORDER BY score DESC
+        LIMIT {top_k}
+        """
     data = _execute_and_fetch(sql, bind)
     columns = ["chunk_id", "document_id", "course_id", "module_id", "text", "document_title", "course_name", "module_name", "score"]
     return [_row_to_dict(columns, row) for row in data]

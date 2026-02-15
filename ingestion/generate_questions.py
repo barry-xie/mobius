@@ -1,9 +1,9 @@
 """
 Knot RAG generation: embed query -> retrieve top-k chunks from Snowflake -> Gemini generates
-practice questions from ONLY that material, with citations. Sources include human-readable
-document_title, course_name, module_name.
+practice questions from ONLY that material, with citations. Optionally scope by unit/topic/subtopic.
 Usage:
   python generate_questions.py --course-id 45110000000215700 --query "binary arithmetic" --num-questions 5
+  python generate_questions.py --course-id ID --query "..." --unit-id u1 --topic-id t1
 """
 from __future__ import annotations
 
@@ -128,9 +128,12 @@ def generate_questions(
     course_id: str,
     query: str,
     num_questions: int = 5,
+    unit_id: str = "",
+    topic_id: str = "",
+    subtopic_id: str = "",
 ) -> dict[str, Any]:
     """
-    Retrieve chunks for course_id + query, then generate practice questions via Gemini.
+    Retrieve chunks for course_id + query (optionally scoped to unit/topic/subtopic), then generate practice questions via Gemini.
     Returns dict with "questions" (list with source_chunk_ids and source_display) or "error".
     """
     if not query or not query.strip():
@@ -142,6 +145,9 @@ def generate_questions(
         query_embedding=query_embedding,
         top_k=RETRIEVAL_TOP_K,
         similarity_threshold=RETRIEVAL_THRESHOLD,
+        unit_id=unit_id or "",
+        topic_id=topic_id or "",
+        subtopic_id=subtopic_id or "",
     )
     if len(chunks) < RETRIEVAL_MIN_CHUNKS:
         return {"error": FAILURE_MESSAGE, "questions": []}
@@ -167,12 +173,18 @@ def main() -> None:
     ap.add_argument("--course-id", type=str, required=True, help="Canvas course ID")
     ap.add_argument("--query", type=str, required=True, help="Topic or query for retrieval")
     ap.add_argument("--num-questions", type=int, default=5, help="Number of questions (default 5)")
+    ap.add_argument("--unit-id", type=str, default="", help="Limit retrieval to this lesson-plan unit")
+    ap.add_argument("--topic-id", type=str, default="", help="Limit retrieval to this topic")
+    ap.add_argument("--subtopic-id", type=str, default="", help="Limit retrieval to this subtopic")
     args = ap.parse_args()
 
     result = generate_questions(
         course_id=args.course_id,
         query=args.query,
         num_questions=args.num_questions,
+        unit_id=args.unit_id,
+        topic_id=args.topic_id,
+        subtopic_id=args.subtopic_id,
     )
     if result.get("error"):
         print(result["error"], file=sys.stderr)
