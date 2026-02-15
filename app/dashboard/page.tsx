@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { CourseTree, StudyGoalTree, TreeItem } from "@/lib/types";
 import { mockCourseTrees, mockStudyGoalTrees } from "@/lib/mocks/trees";
+import PhysicsGraph from "./PhysicsGraph";
+import { buildGraphFromClass, type ClassEntry, type ClassNamesPayload } from "./utils";
 
 interface CanvasClassItem {
   className: string;
@@ -83,39 +85,6 @@ function Connector() {
   return <div className="h-4 w-px bg-[#537aad]/25 sm:h-px sm:w-4 sm:min-w-4" aria-hidden />;
 }
 
-function CourseMindmap({ tree }: { tree: CourseTree }) {
-  const { course, modules, assignments } = tree;
-  const assignmentMap = new Map(assignments.map((a) => [a.id, a]));
-
-  return (
-    <div className="flex flex-col items-center">
-      <MindmapNode label={course.course_code || course.name} variant="center">
-        <Connector />
-        <div className="flex flex-col gap-8 sm:flex-row sm:flex-wrap sm:gap-6">
-          {modules.map((mod) => (
-            <MindmapNode key={mod.id} label={mod.name}>
-              <Connector />
-              <div className="flex flex-wrap justify-center gap-3">
-                {mod.items
-                  ?.filter((item) => item.type !== "SubHeader" || item.title)
-                  .map((item) => {
-                    if (item.type === "Assignment" || item.type === "Quiz") {
-                      const a = item.content_id ? assignmentMap.get(item.content_id) : null;
-                      return (
-                        <MindmapNode key={item.id} label={a?.name || item.title} variant="assignment" />
-                      );
-                    }
-                    return <MindmapNode key={item.id} label={item.title} />;
-                  })}
-              </div>
-            </MindmapNode>
-          ))}
-        </div>
-      </MindmapNode>
-    </div>
-  );
-}
-
 function StudyGoalMindmap({ tree }: { tree: StudyGoalTree }) {
   return (
     <div className="flex flex-col items-center">
@@ -134,17 +103,23 @@ function StudyGoalMindmap({ tree }: { tree: StudyGoalTree }) {
   );
 }
 
+type DashboardItem =
+  | { id: string; label: string; type: "course"; classEntry: ClassEntry; courseTree?: CourseTree }
+  | { id: string; label: string; type: "goal"; tree: StudyGoalTree };
+
 export default function DashboardPage() {
   const [courseTrees, setCourseTrees] = useState<CourseTree[]>(mockCourseTrees);
   const [studyGoalTrees, setStudyGoalTrees] = useState<StudyGoalTree[]>(mockStudyGoalTrees);
+  const [classNamesPayload, setClassNamesPayload] = useState<ClassNamesPayload | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const loadFromStorage = useCallback(async () => {
     if (typeof window === "undefined") return;
     const source = localStorage.getItem("knot_onboard_source");
     if (source === "canvas") {
-      const canvasTrees = buildCanvasCourseTrees(parseStoredClassNames(localStorage.getItem("knot_canvas_class_names")));
-
+      const canvasTrees = buildCanvasCourseTrees(
+        parseStoredClassNames(localStorage.getItem("knot_canvas_class_names") ?? "[]")
+      );
       setCourseTrees(canvasTrees);
       const first = canvasTrees[0];
       if (first) setSelectedId(`course-${first.course.id}`);
@@ -154,19 +129,53 @@ export default function DashboardPage() {
       const first = stored[0];
       if (first) setSelectedId(`goal-${first.id}`);
     } else {
-      // No onboarding - show combined mock
       setSelectedId(`course-${mockCourseTrees[0]?.course.id ?? ""}`);
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadFromStorage();
   }, [loadFromStorage]);
 
-  const allItems: { id: string; label: string; tree: TreeItem }[] = [
-    ...courseTrees.map((t) => ({ id: `course-${t.course.id}`, label: t.course.course_code || t.course.name, tree: t })),
-    ...studyGoalTrees.map((t) => ({ id: `goal-${t.id}`, label: t.name, tree: t })),
+  useEffect(() => {
+    fetch("/classNames.json")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load"))))
+      .then((data: ClassNamesPayload) => setClassNamesPayload(data))
+      .catch(() => setClassNamesPayload(null));
+  }, []);
+
+  useEffect(() => {
+    if (!classNamesPayload?.classes?.length) return;
+    const firstClassId = `class-${classNamesPayload.classes[0].courseId ?? classNamesPayload.classes[0].className}-0`;
+    setSelectedId((prev) => {
+      const validIds = new Set(
+        classNamesPayload.classes.map((c, i) => `class-${c.courseId ?? c.className}-${i}`)
+      );
+      return prev != null && validIds.has(prev) ? prev : firstClassId;
+    });
+  }, [classNamesPayload?.classes?.length]);
+
+  const allItems: DashboardItem[] = [
+    ...(classNamesPayload?.classes?.length
+      ? classNamesPayload.classes.map((c, i) => ({
+          id: `class-${c.courseId ?? c.className}-${i}`,
+          label: c.className,
+          type: "course" as const,
+          classEntry: c,
+        }))
+      : courseTrees.map((t) => ({
+          id: `course-${t.course.id}`,
+          label: t.course.course_code || t.course.name,
+          type: "course" as const,
+          classEntry: { className: t.course.course_code || t.course.name },
+          courseTree: t,
+        }))),
+    ...studyGoalTrees.map((t) => ({
+      id: `goal-${t.id}`,
+      label: t.name,
+      type: "goal" as const,
+      tree: t,
+    })),
   ];
 
   const selected = selectedId ? allItems.find((i) => i.id === selectedId) : null;
@@ -226,8 +235,8 @@ export default function DashboardPage() {
             {selected ? selected.label : "select a course or goal"}
           </h1>
           <p className="mt-1 font-sans text-sm text-[#537aad]/80">
-            {selected?.tree.source === "canvas"
-              ? "topics (modules), assignments, and exams from Canvas"
+            {selected?.type === "course"
+              ? "course at center, units and concepts orbit"
               : "documents and links for your study goal"}
           </p>
         </div>
@@ -238,11 +247,13 @@ export default function DashboardPage() {
               <p className="text-[#537aad]/70">select a course or study goal from the sidebar.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-8 sm:p-10 md:p-12">
-              {selected.tree.source === "canvas" ? (
-                <CourseMindmap tree={selected.tree as CourseTree} />
+            <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-4 sm:p-6 md:p-8">
+              {selected.type === "course" ? (
+                <div className="min-h-[500px] h-[60vh]">
+                  <PhysicsGraph graphData={buildGraphFromClass(selected.classEntry)} />
+                </div>
               ) : (
-                <StudyGoalMindmap tree={selected.tree as StudyGoalTree} />
+                <StudyGoalMindmap tree={selected.tree} />
               )}
             </div>
           )}

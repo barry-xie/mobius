@@ -153,7 +153,7 @@ export async function POST(request: Request) {
     const payload =
       courses.length === 1
         ? { courseId: courses[0].courseId, courseName: courses[0].courseName, units: courses[0].units }
-        : { courses: courses.map((c) => ({ courseId: c.courseId, courseName: c.courseName, units: c.units })) };
+        : { courses: courses.map((c: ConceptualUnitsResult) => ({ courseId: c.courseId, courseName: c.courseName, units: c.units })) };
     writeToClassNamesJson(payload);
     writeConceptsToFile(courses.length === 1 ? (payload as Record<string, unknown>) : { courseId: null, courseName: "", units: [] });
     return NextResponse.json(
