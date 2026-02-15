@@ -1,30 +1,680 @@
 {
   "classes": [
     {
-      "className": "CS3114/5040 S26 OpenDSA",
-      "concepts": [
-        "Concept 1",
-        "Concept 2",
-        "Concept 3",
-        "Concept 4",
-        "Concept 5",
-        "Concept 6"
-      ]
+      "courseId": "45110000000203160",
+      "className": "(10143) Principles of Accounting"
     },
     {
+      "courseId": "45110000000229100",
+      "className": "45110000000229100",
+      "units": []
+    },
+    {
+      "courseId": "45110000000205460",
+      "className": "First-Year Writing (S25)"
+    },
+    {
+      "courseId": "45110000000215700",
       "className": "Intro Computer Organization I",
-      "concepts": [
-        "Concept 7",
-        "Concept 8",
-        "Concept 9",
-        "Concept 10",
-        "Concept 11",
-        "Concept 12"
+      "units": [
+        {
+          "unit_id": "14181395c910",
+          "unit_name": "Course Policies and Overview",
+          "chunk_count": 30,
+          "topics": [
+            {
+              "topic_id": "23e00ee7245e",
+              "topic_name": "Linux",
+              "chunk_count": 18,
+              "subtopics": [
+                {
+                  "subtopic_id": "404b6d56db14",
+                  "subtopic_name": "Basic Commands",
+                  "chunk_count": 15
+                }
+              ]
+            },
+            {
+              "topic_id": "dd9cb9a04bfe",
+              "topic_name": "VSCode Setup",
+              "chunk_count": 3,
+              "subtopics": [
+                {
+                  "subtopic_id": "1e0be764c393",
+                  "subtopic_name": "Docker",
+                  "chunk_count": 2
+                },
+                {
+                  "subtopic_id": "0ec321034086",
+                  "subtopic_name": "rlogin",
+                  "chunk_count": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "unit_id": "2ced1e8a92a6",
+          "unit_name": "Course Policies and Overview",
+          "chunk_count": 12,
+          "topics": [
+            {
+              "topic_id": "039e0e4d0c47",
+              "topic_name": "VSCode Setup",
+              "chunk_count": 1,
+              "subtopics": [
+                {
+                  "subtopic_id": "eaf6a265b382",
+                  "subtopic_name": "Docker",
+                  "chunk_count": 1
+                },
+                {
+                  "subtopic_id": "7488770296b3",
+                  "subtopic_name": "rlogin",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "95df486ff9b1",
+              "topic_name": "Linux",
+              "chunk_count": 4,
+              "subtopics": [
+                {
+                  "subtopic_id": "95ee4778a759",
+                  "subtopic_name": "Basic Commands",
+                  "chunk_count": 3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "unit_id": "6b4678948fc0",
+          "unit_name": "File Systems and C Programming",
+          "chunk_count": 18,
+          "topics": [
+            {
+              "topic_id": "3ddab65f5777",
+              "topic_name": "Compiling and Running C code",
+              "chunk_count": 3,
+              "subtopics": [
+                {
+                  "subtopic_id": "61fc24f5afb2",
+                  "subtopic_name": "GCC",
+                  "chunk_count": 2
+                }
+              ]
+            },
+            {
+              "topic_id": "c2a5637691ac",
+              "topic_name": "Beginning C",
+              "chunk_count": 6,
+              "subtopics": [
+                {
+                  "subtopic_id": "8ce277c7dae1",
+                  "subtopic_name": "variables",
+                  "chunk_count": 0
+                },
+                {
+                  "subtopic_id": "c4b53eb22e7a",
+                  "subtopic_name": "data types",
+                  "chunk_count": 1
+                },
+                {
+                  "subtopic_id": "75730459046e",
+                  "subtopic_name": "arrays",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "f767ad2f6a85",
+              "topic_name": "Basic Scripting",
+              "chunk_count": 7,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "6d3997b343d5",
+          "unit_name": "C Programming Fundamentals",
+          "chunk_count": 34,
+          "topics": [
+            {
+              "topic_id": "026dc363ee59",
+              "topic_name": "Pointers and Arrays",
+              "chunk_count": 1,
+              "subtopics": [
+                {
+                  "subtopic_id": "1a99a4e3e60e",
+                  "subtopic_name": "valgrind",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "07938c590599",
+              "topic_name": "String I/O",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "1db3efa1828a",
+              "topic_name": "Advanced Pointer Topics",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "5682e53221f2",
+              "topic_name": "Functions",
+              "chunk_count": 2,
+              "subtopics": []
+            },
+            {
+              "topic_id": "58d6f717f34a",
+              "topic_name": "Basic Scripting",
+              "chunk_count": 4,
+              "subtopics": []
+            },
+            {
+              "topic_id": "760da2481fa2",
+              "topic_name": "Header Files",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "861095f9750b",
+              "topic_name": "Debugging in C",
+              "chunk_count": 7,
+              "subtopics": [
+                {
+                  "subtopic_id": "8337210be33e",
+                  "subtopic_name": "gdb",
+                  "chunk_count": 7
+                }
+              ]
+            },
+            {
+              "topic_id": "8de2234fedd6",
+              "topic_name": "Strings",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "8f4591ef9f31",
+              "topic_name": "Basic Output",
+              "chunk_count": 4,
+              "subtopics": []
+            },
+            {
+              "topic_id": "a25f1dab7a68",
+              "topic_name": "Intro to Pointers",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "adf2d9ca76bd",
+              "topic_name": "Arrays in C",
+              "chunk_count": 0,
+              "subtopics": [
+                {
+                  "subtopic_id": "f8f62a1a23c8",
+                  "subtopic_name": "static",
+                  "chunk_count": 0
+                },
+                {
+                  "subtopic_id": "988b6c303a99",
+                  "subtopic_name": "dynamic",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "bb41e63be065",
+              "topic_name": "Beginning C",
+              "chunk_count": 1,
+              "subtopics": [
+                {
+                  "subtopic_id": "38c5bef90057",
+                  "subtopic_name": "variables",
+                  "chunk_count": 0
+                },
+                {
+                  "subtopic_id": "3f39dc4edece",
+                  "subtopic_name": "data types",
+                  "chunk_count": 0
+                },
+                {
+                  "subtopic_id": "fa786757a947",
+                  "subtopic_name": "arrays",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "cbe2c4b79071",
+              "topic_name": "File Systems",
+              "chunk_count": 3,
+              "subtopics": []
+            },
+            {
+              "topic_id": "cc0a9a160353",
+              "topic_name": "Numeric Bases",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "d1c1458e84ca",
+              "topic_name": "Parsing",
+              "chunk_count": 2,
+              "subtopics": []
+            },
+            {
+              "topic_id": "d45fe1d2a4f6",
+              "topic_name": "Compiling and Running C code",
+              "chunk_count": 2,
+              "subtopics": [
+                {
+                  "subtopic_id": "c7f409692374",
+                  "subtopic_name": "GCC",
+                  "chunk_count": 2
+                }
+              ]
+            },
+            {
+              "topic_id": "f201b522e796",
+              "topic_name": "Structs",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "f6395375c401",
+              "topic_name": "Separate Compilations",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "f766cf090730",
+              "topic_name": "C Identifier Properties",
+              "chunk_count": 0,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "7a5a05670c4b",
+          "unit_name": "Functions and Separate Compilation",
+          "chunk_count": 4,
+          "topics": [
+            {
+              "topic_id": "24f00224c7b6",
+              "topic_name": "Basic Output",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "2987db558ba2",
+              "topic_name": "Functions",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "2ea838c41d5f",
+              "topic_name": "Header Files and Separate Compilations",
+              "chunk_count": 2,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "cbc1100440ac",
+          "unit_name": "Data Representation and System Tools",
+          "chunk_count": 3,
+          "topics": [
+            {
+              "topic_id": "06ae39df290e",
+              "topic_name": "Data Representation",
+              "chunk_count": 3,
+              "subtopics": []
+            },
+            {
+              "topic_id": "5356714c1a51",
+              "topic_name": "Bash and Makefiles",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "9b53643f014f",
+              "topic_name": "Bitwise Operations",
+              "chunk_count": 0,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "c7ad4d713779",
+          "unit_name": "Computer Architecture and Assembly",
+          "chunk_count": 7,
+          "topics": [
+            {
+              "topic_id": "096beb637ce1",
+              "topic_name": "Basic x86-64 Assembly",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "1523a5b7cd43",
+              "topic_name": "Intro to x86-64 Assembly",
+              "chunk_count": 2,
+              "subtopics": []
+            },
+            {
+              "topic_id": "5968f599efa5",
+              "topic_name": "Debugging Assembly",
+              "chunk_count": 3,
+              "subtopics": []
+            },
+            {
+              "topic_id": "68a56f7c212b",
+              "topic_name": "Intro to Computer Architecture",
+              "chunk_count": 0,
+              "subtopics": [
+                {
+                  "subtopic_id": "e9f6af8b52e7",
+                  "subtopic_name": "von Neumann",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "8fa2ceb21a20",
+              "topic_name": "Functions and the Stack in Assembly",
+              "chunk_count": 2,
+              "subtopics": []
+            },
+            {
+              "topic_id": "a3c9223e319a",
+              "topic_name": "Control Structure in x86-64 Assembly",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "bf93abf59104",
+              "topic_name": "More Assembly Examples",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "f85cf2abfebe",
+              "topic_name": "Memory Layout",
+              "chunk_count": 0,
+              "subtopics": [
+                {
+                  "subtopic_id": "e1752026dc64",
+                  "subtopic_name": "stack",
+                  "chunk_count": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "unit_id": "d6fa9f229dd7",
+          "unit_name": "C Identifier Properties and Debugging",
+          "chunk_count": 6,
+          "topics": [
+            {
+              "topic_id": "3c41467d15b6",
+              "topic_name": "C Identifier Properties",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "500dc6575389",
+              "topic_name": "Structs",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "b8689dda42e8",
+              "topic_name": "Debugging in C",
+              "chunk_count": 6,
+              "subtopics": [
+                {
+                  "subtopic_id": "766a3d5dc91c",
+                  "subtopic_name": "gdb",
+                  "chunk_count": 6
+                }
+              ]
+            },
+            {
+              "topic_id": "e0262d18f492",
+              "topic_name": "Numeric Bases",
+              "chunk_count": 0,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "325fca24119b",
+          "unit_name": "Review and Final Exam",
+          "chunk_count": 1,
+          "topics": [
+            {
+              "topic_id": "71a80adcd6eb",
+              "topic_name": "Review",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "eb758d118e09",
+              "topic_name": "Open Q + A",
+              "chunk_count": 0,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "647c367ac5dd",
+          "unit_name": "Arrays and Pointers in C",
+          "chunk_count": 7,
+          "topics": [
+            {
+              "topic_id": "5808ad9bfc03",
+              "topic_name": "Intro to Pointers",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "6be5f2421047",
+              "topic_name": "Pointers and Arrays",
+              "chunk_count": 6,
+              "subtopics": [
+                {
+                  "subtopic_id": "4d66a609e05d",
+                  "subtopic_name": "valgrind",
+                  "chunk_count": 5
+                }
+              ]
+            },
+            {
+              "topic_id": "a6c3959d2880",
+              "topic_name": "Arrays in C",
+              "chunk_count": 0,
+              "subtopics": [
+                {
+                  "subtopic_id": "836ecccfc8fc",
+                  "subtopic_name": "static",
+                  "chunk_count": 0
+                },
+                {
+                  "subtopic_id": "db1c02e7f871",
+                  "subtopic_name": "dynamic",
+                  "chunk_count": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "unit_id": "964379797c92",
+          "unit_name": "Strings and Advanced Pointers",
+          "chunk_count": 3,
+          "topics": [
+            {
+              "topic_id": "48428d7598b4",
+              "topic_name": "Strings",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "5a9b000eba4c",
+              "topic_name": "Advanced Pointer Topics",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "e4db6b35b47e",
+              "topic_name": "String I/O",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "f51942a51ea2",
+              "topic_name": "Parsing",
+              "chunk_count": 1,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "5aa22cc1ab11",
+          "unit_name": "Data Representation and Bitwise Operations",
+          "chunk_count": 7,
+          "topics": [
+            {
+              "topic_id": "0cb15d6a62e7",
+              "topic_name": "Bash and Makefiles",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "24e1ebe73671",
+              "topic_name": "Bitwise Operations",
+              "chunk_count": 2,
+              "subtopics": []
+            },
+            {
+              "topic_id": "74b3a63e3749",
+              "topic_name": "Data Representation",
+              "chunk_count": 5,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "3f9c8674b7f5",
+          "unit_name": "Computer Architecture and Assembly",
+          "chunk_count": 0,
+          "topics": [
+            {
+              "topic_id": "2199261b48a6",
+              "topic_name": "Intro to Computer Architecture",
+              "chunk_count": 0,
+              "subtopics": [
+                {
+                  "subtopic_id": "5061d263c1fa",
+                  "subtopic_name": "von Neumann",
+                  "chunk_count": 0
+                }
+              ]
+            },
+            {
+              "topic_id": "bebbf27e045d",
+              "topic_name": "Intro to x86-64 Assembly",
+              "chunk_count": 0,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "8054aaeff7e0",
+          "unit_name": "x86-64 Assembly",
+          "chunk_count": 2,
+          "topics": [
+            {
+              "topic_id": "1d460b02aaeb",
+              "topic_name": "Basic x86-64 Assembly",
+              "chunk_count": 1,
+              "subtopics": []
+            },
+            {
+              "topic_id": "7da24c32baa8",
+              "topic_name": "Control Structure in x86-64 Assembly",
+              "chunk_count": 1,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "ef50e3b7a925",
+          "unit_name": "Assembly and Memory Layout",
+          "chunk_count": 1,
+          "topics": [
+            {
+              "topic_id": "32e6ae1f64de",
+              "topic_name": "More Assembly Examples",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "375aea3ac872",
+              "topic_name": "Debugging Assembly",
+              "chunk_count": 0,
+              "subtopics": []
+            },
+            {
+              "topic_id": "5f9a8dbc6b75",
+              "topic_name": "Memory Layout",
+              "chunk_count": 1,
+              "subtopics": [
+                {
+                  "subtopic_id": "b3f33e1486ae",
+                  "subtopic_name": "stack",
+                  "chunk_count": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "unit_id": "f7c4b7ccd1e5",
+          "unit_name": "Functions in Assembly",
+          "chunk_count": 2,
+          "topics": [
+            {
+              "topic_id": "7c7a841f0ed7",
+              "topic_name": "Functions and the Stack in Assembly",
+              "chunk_count": 2,
+              "subtopics": []
+            }
+          ]
+        },
+        {
+          "unit_id": "184ad3b7bb51",
+          "unit_name": "Review and Q&A",
+          "chunk_count": 0,
+          "topics": []
+        }
       ]
     }
   ],
   "classNames": [
-    "CS3114/5040 S26 OpenDSA",
+    "(10143) Principles of Accounting",
+    "45110000000229100",
+    "First-Year Writing (S25)",
     "Intro Computer Organization I"
-  ]
+  ],
+  "updatedAt": "2026-02-15T04:33:28.752Z"
 }

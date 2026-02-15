@@ -78,7 +78,40 @@ Use the printed `unit_id`, `topic_id`, `subtopic_id` values with `generate_quest
 
 Each unit has `unit_id`, `unit_name`, `chunk_count`, and `topics`; each topic has `topic_id`, `topic_name`, `chunk_count`, and `subtopics`; each subtopic has `subtopic_id`, `subtopic_name`, `chunk_count`. Use **Canvas course ID** (e.g. from your Canvas course list), not course name. The API returns **`courseName`** (from the RAG `courses` table) for human-readable display instead of showing the raw course ID.
 
-**Stored JSON:** Whenever the concepts API is called, the response is also written to **`public/concepts.json`** so the frontend can load it directly (e.g. `fetch('/concepts.json')` or `fetch('/public/concepts.json')` depending on your server). The file includes `courseId`, **`courseName`** (human-readable), `units` (or `courses` with `courseName` per course), and `updatedAt` (ISO timestamp).
+**Stored JSON (multi-course):** All concept/learning-structure output is merged into **`public/classNames.json`** so the frontend has one file at the **course** level. Schema:
+
+- **`classes`**: array of `{ className, courseId, units }` — one entry per course; `units` is the full learning structure (unit → topic → subtopic with chunk counts).
+- **`classNames`**: array of course display names (for backward compatibility with onboarding/dashboard).
+- **`updatedAt`**: ISO timestamp.
+
+Running concept generation for one course (Python or API) **merges** that course into `classNames.json`; running for multiple courses (API with `courseIds`) updates or appends each. Existing entries are matched by `courseId` or `className`. The concepts API also writes **`public/concepts.json`** (single-course shape) for compatibility.
+
+**How to test**
+
+1. **Python (one course → classNames.json)**  
+   From `ingestion` with venv active and a course already ingested + lesson plan built (or run full pipeline once):
+   ```bash
+   cd ingestion
+   .\.venv\Scripts\Activate
+   python run_concept_generation.py --course-id 45110000000215700 --course-name "Computer Org"
+   ```
+   - Check **`public/classNames.json`**: should have `classes` with one entry `{ "className": "...", "courseId": "45110000000215700", "units": [ ... ] }` and `classNames` with that name. If the file had other courses (e.g. placeholder `concepts`), they stay; this course is added or updated.
+
+2. **API (Node server)**  
+   From repo root:
+   ```bash
+   node server.js
+   ```
+   Then in another terminal or browser:
+   - **Single course:** `curl "http://localhost:8080/api/canvas/concepts?courseId=45110000000215700"`  
+   - **Multiple:** `curl -X POST http://localhost:8080/api/canvas/concepts -H "Content-Type: application/json" -d "{\"courseIds\":[\"45110000000215700\"]}"`  
+   Check **`public/classNames.json`** again: the course(s) should be merged (same schema as above).
+
+3. **Multi-course merge**  
+   Run concept generation (or call the API) for a second course that has RAG data. Open **`public/classNames.json`**: `classes` should have two entries (each with `className`, `courseId`, `units`) and `classNames` should list both names.
+
+4. **Frontend**  
+   Load the app and open the onboarding or dashboard page that reads `classNames.json` (or `/api/canvas/concepts`). Confirm the list of classes and, if your UI shows it, the units/topics/subtopics for a selected course.
 
 ---
 

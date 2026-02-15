@@ -2,10 +2,6 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-type CanvasResult = {
-  classNames?: unknown;
-};
-
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -16,12 +12,13 @@ export async function POST(request: Request) {
     }
 
     const { run } = await import("@/scripts/getCanvas");
-    const result = (await run({ token, writeFile: true })) as CanvasResult;
-    const classNames = Array.isArray(result?.classNames)
-      ? result.classNames.filter((name): name is string => typeof name === "string")
+    const result = (await run({ token, writeFile: true })) as { classes?: { courseId?: string; className: string }[]; classNames?: string[] };
+    const classes = Array.isArray(result?.classes)
+      ? result.classes.filter((c) => c && typeof c.className === "string")
       : [];
+    const classNames = classes.map((c) => c.className.trim()).filter(Boolean);
 
-    return NextResponse.json({ classNames });
+    return NextResponse.json({ classes, classNames });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load Canvas data";
     return NextResponse.json({ error: message }, { status: 500 });

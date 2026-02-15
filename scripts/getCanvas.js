@@ -396,7 +396,7 @@ function createCanvasClient(token, apiBase = DEFAULT_API_BASE) {
       return true;
     });
 
-    const classNames = [];
+    const classesWithIds = [];
 
     for (const course of activeCourses) {
       const [assignments, files] = await Promise.all([
@@ -406,14 +406,22 @@ function createCanvasClient(token, apiBase = DEFAULT_API_BASE) {
 
       if (assignments.length > 0 || files.length > 0) {
         const name = toText(course.name).trim();
-        if (name.length > 0) classNames.push(name);
+        if (name.length > 0) {
+          classesWithIds.push({ courseId: String(course.id), className: name });
+        }
       }
     }
 
-    const uniqueClassNames = Array.from(new Set(classNames));
+    const seen = new Set();
+    const unique = classesWithIds.filter((c) => {
+      const key = c.courseId;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     return {
-      classes: uniqueClassNames.map((className) => ({ className })),
-      classNames: uniqueClassNames,
+      classes: unique,
+      classNames: unique.map((c) => c.className),
     };
   }
 

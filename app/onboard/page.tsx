@@ -18,6 +18,7 @@ interface LinkItem {
 
 interface CanvasClassItem {
   className: string;
+  courseId?: string;
 }
 
 const LOADING_PHRASES = [
@@ -37,8 +38,8 @@ export default function OnboardPage() {
   const [canvasLoadingPhrase, setCanvasLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const [canvasPreparing, setCanvasPreparing] = useState(false);
   const [canvasError, setCanvasError] = useState("");
-  const [fetchedCourses, setFetchedCourses] = useState<string[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
+  const [fetchedCourses, setFetchedCourses] = useState<CanvasClassItem[]>([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const [studyGoalName, setStudyGoalName] = useState("");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -101,28 +102,28 @@ export default function OnboardPage() {
         throw new Error(typeof data?.error === "string" ? data.error : "Failed to load Canvas data");
       }
 
-      const classNames = Array.isArray(data?.classes)
+      const classes: CanvasClassItem[] = Array.isArray(data?.classes)
         ? data.classes
             .map((item: unknown) => {
               if (item && typeof item === "object" && "className" in item) {
-                const className = (item as CanvasClassItem).className;
-                return typeof className === "string" ? className.trim() : "";
+                const row = item as CanvasClassItem;
+                const className = typeof row.className === "string" ? row.className.trim() : "";
+                const courseId = typeof row.courseId === "string" ? row.courseId.trim() : "";
+                if (className) return { className, ...(courseId && { courseId }) };
               }
-              return "";
+              return null;
             })
-            .filter(Boolean)
-        : Array.isArray(data?.classNames)
-          ? data.classNames.filter((n): n is string => typeof n === "string").map((n) => n.trim()).filter(Boolean)
-          : [];
+            .filter((c: CanvasClassItem | null): c is CanvasClassItem => c != null)
+        : [];
 
-      if (classNames.length === 0) {
+      if (classes.length === 0) {
         setCanvasError("no courses found. check that your token has access to courses with assignments or files.");
         return;
       }
 
-      const sorted = [...classNames].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+      const sorted = [...classes].sort((a, b) => a.className.localeCompare(b.className, undefined, { sensitivity: "base" }));
       setFetchedCourses(sorted);
-      setSelectedCourses(new Set(sorted));
+      setSelectedCourseIds(new Set(sorted.map((c) => c.courseId ?? c.className)));
     } catch (err) {
       setCanvasError(err instanceof Error ? err.message : "Failed to load Canvas data");
     } finally {
@@ -131,8 +132,8 @@ export default function OnboardPage() {
   };
 
   const handleCourseSelectionContinue = async () => {
-    const selected = Array.from(selectedCourses);
-    if (selected.length === 0 || canvasPreparing) return;
+    const selectedIds = Array.from(selectedCourseIds);
+    if (selectedIds.length === 0 || canvasPreparing) return;
 
     setCanvasPreparing(true);
     setCanvasError("");
@@ -141,7 +142,7 @@ export default function OnboardPage() {
       const res = await fetch("/api/canvas/concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classNames: selected }),
+        body: JSON.stringify({ courseIds: selectedIds }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -151,7 +152,9 @@ export default function OnboardPage() {
 
       if (typeof window !== "undefined") {
         localStorage.setItem("knot_canvas_token", canvasToken.trim());
-        localStorage.setItem("knot_canvas_class_names", JSON.stringify(selected));
+        const selected = fetchedCourses.filter((c: CanvasClassItem) => selectedCourseIds.has(c.courseId ?? c.className));
+        localStorage.setItem("knot_canvas_courses", JSON.stringify(selected));
+        localStorage.setItem("knot_canvas_class_names", JSON.stringify(selected.map((c: CanvasClassItem) => c.className)));
         localStorage.setItem("knot_onboard_source", "canvas");
       }
 
@@ -163,17 +166,17 @@ export default function OnboardPage() {
     }
   };
 
-  const toggleCourse = (name: string) => {
-    setSelectedCourses((prev) => {
+  const toggleCourse = (courseId: string) => {
+    setSelectedCourseIds((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(courseId)) next.delete(courseId);
+      else next.add(courseId);
       return next;
     });
   };
 
-  const selectAllCourses = () => setSelectedCourses(new Set(fetchedCourses));
-  const deselectAllCourses = () => setSelectedCourses(new Set());
+  const selectAllCourses = () => setSelectedCourseIds(new Set(fetchedCourses.map((c) => c.courseId ?? c.className)));
+  const deselectAllCourses = () => setSelectedCourseIds(new Set());
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,28 +289,31 @@ export default function OnboardPage() {
                     </button>
                   </div>
                   <ul className="mt-4 max-h-72 space-y-1.5 overflow-y-auto rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-2">
-                    {fetchedCourses.map((name) => (
-                      <li key={name}>
-                        <label
-                          className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-all ${
-                            selectedCourses.has(name)
-                              ? "bg-[#537aad]/10 border border-[#537aad]/25"
-                              : "border border-transparent hover:bg-[#537aad]/5"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCourses.has(name)}
-                            onChange={() => toggleCourse(name)}
-                            className="h-4 w-4 rounded border-[#537aad]/40 accent-[#537aad] focus:ring-2 focus:ring-[#537aad]/30 focus:ring-offset-0"
-                          />
-                          <span className="text-sm normal-case text-[#537aad]">{name}</span>
-                        </label>
-                      </li>
-                    ))}
+                    {fetchedCourses.map((course) => {
+                      const id = course.courseId ?? course.className;
+                      return (
+                        <li key={id}>
+                          <label
+                            className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-all ${
+                              selectedCourseIds.has(id)
+                                ? "bg-[#537aad]/10 border border-[#537aad]/25"
+                                : "border border-transparent hover:bg-[#537aad]/5"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedCourseIds.has(id)}
+                              onChange={() => toggleCourse(id)}
+                              className="h-4 w-4 rounded border-[#537aad]/40 accent-[#537aad] focus:ring-2 focus:ring-[#537aad]/30 focus:ring-offset-0"
+                            />
+                            <span className="text-sm normal-case text-[#537aad]">{course.className}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
                   </ul>
                   <p className="mt-3 text-xs lowercase text-[#537aad]/60">
-                    {selectedCourses.size} of {fetchedCourses.length} selected
+                    {selectedCourseIds.size} of {fetchedCourses.length} selected
                   </p>
                 </div>
                 <div className="mt-8 flex gap-3">
@@ -316,7 +322,7 @@ export default function OnboardPage() {
                     onClick={() => {
                       setCanvasError("");
                       setFetchedCourses([]);
-                      setSelectedCourses(new Set());
+                      setSelectedCourseIds(new Set());
                     }}
                     disabled={canvasPreparing}
                     className="flex items-center gap-1.5 rounded-lg border border-[#537aad]/40 px-4 py-2 text-sm font-medium lowercase text-[#537aad] transition-colors hover:bg-[#537aad]/5"
@@ -329,7 +335,7 @@ export default function OnboardPage() {
                   <button
                     type="button"
                     onClick={handleCourseSelectionContinue}
-                    disabled={selectedCourses.size === 0 || canvasPreparing}
+                    disabled={selectedCourseIds.size === 0 || canvasPreparing}
                     className="rounded-lg px-4 py-2 text-sm font-medium lowercase text-[#fffbf9] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ background: "linear-gradient(135deg, #537aad 0%, #6b8fc4 100%)" }}
                   >
