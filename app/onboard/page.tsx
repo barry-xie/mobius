@@ -132,7 +132,8 @@ export default function OnboardPage() {
   };
 
   const handleCourseSelectionContinue = async () => {
-    const selectedIds = Array.from(selectedCourseIds);
+    const selectedCourses = fetchedCourses.filter((course) => selectedCourseIds.has(course.courseId ?? course.className));
+    const selectedIds = selectedCourses.map((course) => course.courseId ?? course.className);
     if (selectedIds.length === 0 || canvasPreparing) return;
 
     setCanvasPreparing(true);
@@ -142,7 +143,13 @@ export default function OnboardPage() {
       const res = await fetch("/api/canvas/concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseIds: selectedIds }),
+        body: JSON.stringify({
+          courseIds: selectedIds,
+          courses: selectedCourses.map((course) => ({
+            courseId: course.courseId ?? course.className,
+            className: course.className,
+          })),
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -152,9 +159,8 @@ export default function OnboardPage() {
 
       if (typeof window !== "undefined") {
         localStorage.setItem("knot_canvas_token", canvasToken.trim());
-        const selected = fetchedCourses.filter((c: CanvasClassItem) => selectedCourseIds.has(c.courseId ?? c.className));
-        localStorage.setItem("knot_canvas_courses", JSON.stringify(selected));
-        localStorage.setItem("knot_canvas_class_names", JSON.stringify(selected.map((c: CanvasClassItem) => c.className)));
+        localStorage.setItem("knot_canvas_courses", JSON.stringify(selectedCourses));
+        localStorage.setItem("knot_canvas_class_names", JSON.stringify(selectedCourses.map((c: CanvasClassItem) => c.className)));
         localStorage.setItem("knot_onboard_source", "canvas");
       }
 

@@ -4,7 +4,6 @@ Run the full concept/lesson-plan pipeline for a course using existing RAG data:
   2. Tag all chunks to that plan (batched LLM)
   3. Print the resulting conceptual structure (and chunk counts)
   4. Merge this course into public/classNames.json (course-level schema for multiple classes; frontend reads this)
-  5. Also write public/concepts.json (single-course shape) for compatibility
 
 Requires: course already ingested (documents + chunks in Snowflake). Run ingest_course.py first.
 
@@ -25,7 +24,6 @@ from snowflake_rag import get_chunks_for_course, get_course_name, list_conceptua
 from tag_chunks import tag_chunks_for_course
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CONCEPTS_JSON_PATH = REPO_ROOT / "public" / "concepts.json"
 CLASSNAMES_JSON_PATH = REPO_ROOT / "public" / "classNames.json"
 
 
@@ -152,13 +150,6 @@ def main() -> None:
     except Exception as e:
         if not args.json:
             print(f"  (Could not write classNames.json: {e})", file=sys.stderr)
-
-    # 6. Write public/concepts.json (single-course shape) for compatibility
-    try:
-        CONCEPTS_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CONCEPTS_JSON_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    except Exception:
-        pass
 
     if args.json:
         print(json.dumps(payload, indent=2))
