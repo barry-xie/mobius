@@ -2,6 +2,23 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { QuizRequest, QuizQuestion } from "@/lib/types/quiz";
 
+/** Extract and repair JSON from Gemini response (handles markdown fences, trailing commas, extra text). */
+function extractJson(raw: string): string {
+  let s = raw.trim();
+  // Remove markdown code fences
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/g, "").trim();
+  // Find start of JSON object (look for "questions" key or first {)
+  const questionsIdx = s.search(/\{"\s*questions\s*"/);
+  const braceIdx = s.indexOf("{");
+  const start = questionsIdx !== -1 ? questionsIdx : braceIdx;
+  if (start !== -1) s = s.slice(start);
+  const lastBrace = s.lastIndexOf("}");
+  if (lastBrace !== -1) s = s.slice(0, lastBrace + 1);
+  // Fix trailing commas before } or ] (invalid in JSON)
+  s = s.replace(/,(\s*[}\]])/g, "$1");
+  return s;
+}
+
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
@@ -82,15 +99,27 @@ Return ONLY valid JSON (no markdown, no code fences) in this exact format:
 }`;
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = result.response.text()?.trim() ?? "";
 
-    // Parse JSON from response (strip any markdown fences if present)
-    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    if (!text) {
+      return NextResponse.json(
+        { error: "Empty response from Gemini", raw: "" },
+        { status: 502 }
+      );
+    }
+
+    // Extract and parse JSON (Gemini often wraps in markdown, adds text, or returns malformed JSON)
+    const extracted = extractJson(text);
     let parsed: { questions: Array<Record<string, unknown>> };
     try {
-      parsed = JSON.parse(cleaned);
+      parsed = JSON.parse(extracted);
     } catch {
       return NextResponse.json(
         { error: "Failed to parse Gemini response", raw: text.slice(0, 500) },
