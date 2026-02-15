@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StudyGoalTree } from "@/lib/types";
 import { mockStudyGoalTrees } from "@/lib/mocks/trees";
 import PhysicsGraph from "./PhysicsGraph";
+import ChatWidget from "./ChatWidget";
 import { buildGraphFromClass, getUnitNodeId, type ClassEntry, type ClassNamesPayload, type GraphNode, type GraphLink } from "./utils";
 
 function MindmapNode({
@@ -167,7 +168,8 @@ export default function DashboardPage() {
                           setSelectedId(item.id);
                           setSelectedUnitId(null);
                         }}
-                        className={`w-full rounded-md px-2.5 py-[7px] text-left text-[11px] font-medium leading-snug transition-all duration-150 ${
+                        title={item.label}
+                        className={`w-full truncate rounded-md px-2.5 py-[7px] text-left text-[11px] font-medium leading-snug transition-all duration-150 ${
                           selectedId === item.id
                             ? "bg-[#537aad] text-white shadow-sm"
                             : "text-[#537aad] hover:bg-[#537aad]/6"
@@ -204,7 +206,7 @@ export default function DashboardPage() {
                           : "text-[#537aad] hover:bg-[#537aad]/6"
                       }`}
                     >
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate" title={item.label}>{item.label}</span>
                       {hasUnits && (
                         <svg
                           width="12"
@@ -226,6 +228,7 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => setSelectedUnitId(unitNodeId)}
+                                title={unit.unit_name ?? "Unit"}
                                 className={`block w-full truncate rounded-[5px] px-2 py-[5px] text-left text-[11px] transition-all duration-150 ${
                                   isUnitSelected
                                     ? "bg-[#537aad]/10 font-medium text-[#537aad]"
@@ -294,6 +297,7 @@ export default function DashboardPage() {
                   graphData={graphData}
                   selectedNodeId={selectedUnitId}
                   onUnitSelect={setSelectedUnitId}
+                  courseName={selected.classEntry.className}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-xl bg-white/40 p-6">
@@ -304,6 +308,8 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      <ChatWidget rightOffset={selectedUnitId ? 340 : 0} />
     </div>
   );
 }

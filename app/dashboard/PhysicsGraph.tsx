@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import * as d3 from "d3-force";
 import { type GraphNode, type GraphLink, type UnitEntry } from "./utils";
+import Quiz from "./Quiz";
+import type { QuizMode } from "@/lib/types/quiz";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
 
@@ -95,12 +97,18 @@ function ConceptSidebar({
   onClose,
   onTransitionEnd,
   onMasteryChange,
+  courseName,
+  onLaunchQuiz,
+  masteryVersion,
 }: {
   node: GraphNode | null;
   isClosing: boolean;
   onClose: () => void;
   onTransitionEnd: () => void;
   onMasteryChange?: () => void;
+  courseName: string;
+  onLaunchQuiz?: (mode: QuizMode) => void;
+  masteryVersion?: number;
 }) {
   const isOpen = !!node && !isClosing;
   const unitId = node?.unitData?.unit_id ?? node?.id ?? "";
@@ -108,20 +116,7 @@ function ConceptSidebar({
 
   useEffect(() => {
     setUnitResult(getUnitTestResult(unitId));
-  }, [unitId]);
-
-  const handleTakeTest = useCallback(() => {
-    if (!node?.unitData?.topics?.length) return;
-    const topicScores: Record<string, number> = {};
-    node.unitData.topics.forEach((t) => {
-      const id = t.topic_id ?? t.topic_name ?? "";
-      topicScores[id] = Math.floor(Math.random() * 100);
-    });
-    const result: UnitTestResult = { testCompleted: true, topicScores };
-    setUnitTestResult(unitId, result);
-    setUnitResult(result);
-    onMasteryChange?.();
-  }, [node?.unitData?.topics, unitId, onMasteryChange]);
+  }, [unitId, masteryVersion]);
 
   const handleTransitionEnd = (e: React.TransitionEvent) => {
     if (e.propertyName === "width" && isClosing) onTransitionEnd();
@@ -262,7 +257,7 @@ function ConceptSidebar({
                 <div className="mt-auto space-y-2 pt-2">
                   <button
                     type="button"
-                    onClick={handleTakeTest}
+                    onClick={() => onLaunchQuiz?.("diagnostic")}
                     className="w-full rounded-lg bg-[#537aad] py-2.5 text-[11px] font-semibold text-white shadow-sm transition-all duration-150 hover:bg-[#46689a] hover:shadow-md active:scale-[0.98]"
                   >
                     {testCompleted ? "Retake diagnostic" : "Take diagnostic test"}
@@ -270,6 +265,7 @@ function ConceptSidebar({
                   {testCompleted && (
                     <button
                       type="button"
+                      onClick={() => onLaunchQuiz?.("practice")}
                       className="w-full rounded-lg border border-black/8 bg-white py-2.5 text-[11px] font-medium text-[#537aad] transition-all duration-150 hover:border-black/12 hover:shadow-sm active:scale-[0.98]"
                     >
                       Generate practice questions
@@ -289,10 +285,11 @@ export type PhysicsGraphProps = {
   graphData: { nodes: GraphNode[]; links: GraphLink[] };
   selectedNodeId?: string | null;
   onUnitSelect?: (nodeId: string | null) => void;
+  courseName?: string;
 };
 
 // ─── PhysicsGraph component ─────────────────────────────────────────────────
-export default function PhysicsGraph({ graphData, selectedNodeId, onUnitSelect }: PhysicsGraphProps) {
+export default function PhysicsGraph({ graphData, selectedNodeId, onUnitSelect, courseName = "Course" }: PhysicsGraphProps) {
   const fgRef = useRef<{
     d3Force: (name: string, force?: unknown) => unknown;
     centerAt: (x: number, y: number, duration?: number) => void;
@@ -306,6 +303,7 @@ export default function PhysicsGraph({ graphData, selectedNodeId, onUnitSelect }
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [sidebarClosing, setSidebarClosing] = useState(false);
   const [masteryVersion, setMasteryVersion] = useState(0);
+  const [quizMode, setQuizMode] = useState<QuizMode | null>(null);
   const selectedNodeRef = useRef<GraphNode | null>(null);
   const selectedNodeIdRef = useRef<string | null>(null);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
@@ -688,7 +686,26 @@ export default function PhysicsGraph({ graphData, selectedNodeId, onUnitSelect }
         onClose={handleSidebarClose}
         onTransitionEnd={handleSidebarTransitionEnd}
         onMasteryChange={() => setMasteryVersion((v) => v + 1)}
+        courseName={courseName}
+        onLaunchQuiz={(mode) => setQuizMode(mode)}
+        masteryVersion={masteryVersion}
       />
+
+      {/* Quiz overlay */}
+      {quizMode && selectedNode?.unitData && (
+        <Quiz
+          courseName={courseName}
+          unitName={selectedNode.name}
+          unitId={selectedNode.unitData.unit_id ?? selectedNode.id}
+          unitData={selectedNode.unitData}
+          mode={quizMode}
+          onClose={() => setQuizMode(null)}
+          onComplete={() => {
+            setQuizMode(null);
+            setMasteryVersion((v) => v + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
