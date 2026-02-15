@@ -4,7 +4,9 @@ const path = require("path");
 
 const { runPythonJson } = require("./pythonInterop");
 
-const REPO_ROOT = path.join(__dirname, "..");
+const REPO_ROOT = fs.existsSync(path.join(process.cwd(), "public"))
+  ? process.cwd()
+  : path.join(__dirname, "..");
 const CLASSNAMES_JSON_PATH = path.join(REPO_ROOT, "public", "classNames.json");
 
 function normalizeTimeout(value, fallback) {
@@ -80,11 +82,12 @@ async function run(options = {}) {
 
   const normalized = normalizeConceptualPayload(courseId, payload);
   const courseName = normalized.courseName || requestedClassName || courseId;
+  const className = requestedClassName || normalized.courseName || courseId;
 
   const result = {
     courseId: normalized.courseId || courseId,
     courseName,
-    className: courseName,
+    className,
     units: Array.isArray(normalized.units) ? normalized.units : [],
   };
 

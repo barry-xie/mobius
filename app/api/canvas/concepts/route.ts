@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 interface ConceptualUnitsResult {
   courseId: string;
   courseName: string;
+  className?: string;
   units: unknown[];
   warning?: string;
 }
@@ -132,6 +133,7 @@ export async function POST(request: Request) {
     });
 
     if (failedCourses.length > 0) {
+      console.error("/api/canvas/concepts failed courses", failedCourses);
       return NextResponse.json(
         {
           error: "Concept preparation is still in progress or failed for one or more courses",
@@ -144,10 +146,16 @@ export async function POST(request: Request) {
     const coursesById = new Map(courses.map((course) => [course.courseId, course]));
     const selectedCourses = courseIds.map((id) => {
       const generated = coursesById.get(id);
-      if (generated) return generated;
+      if (generated) {
+        return {
+          ...generated,
+          className: nameByCourseId.get(id) || generated.className || generated.courseName || id,
+        } satisfies ConceptualUnitsResult;
+      }
       return {
         courseId: id,
         courseName: nameByCourseId.get(id) || id,
+        className: nameByCourseId.get(id) || id,
         units: [],
       } satisfies ConceptualUnitsResult;
     });

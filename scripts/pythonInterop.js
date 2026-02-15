@@ -1,8 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+const fs = require("fs");
 const { spawn } = require("child_process");
 const path = require("path");
 
-const DEFAULT_INGESTION_DIR = path.join(__dirname, "..", "ingestion");
+const INGESTION_FROM_CWD = path.join(process.cwd(), "ingestion");
+const INGESTION_FROM_SCRIPT_DIR = path.join(__dirname, "..", "ingestion");
+const DEFAULT_INGESTION_DIR = fs.existsSync(INGESTION_FROM_CWD)
+  ? INGESTION_FROM_CWD
+  : INGESTION_FROM_SCRIPT_DIR;
 const PYTHON_CANDIDATES = [
   { command: "python", argsPrefix: [] },
   { command: "python3", argsPrefix: [] },

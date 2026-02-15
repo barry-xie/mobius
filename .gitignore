@@ -56,3 +56,5 @@ node_modules/
 
 # Misc
 *.log
+
+.gitignore
