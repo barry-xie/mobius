@@ -62,7 +62,7 @@ def _safe_get_all(token: str, path: str, params: dict | None = None) -> list[Any
     try:
         return _get_all_pages(token, path, params)
     except requests.HTTPError as e:
-        if e.response and e.response.status_code in (401, 403):
+        if e.response and e.response.status_code in (401, 403, 404):
             return []
         raise
 

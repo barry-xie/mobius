@@ -17,6 +17,73 @@ pip install -r requirements.txt
 
 Ensure `.env` in the repo root has `CANVAS_API`, `GEMINI_API_KEY`, and Snowflake vars (`SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, etc.).
 
+## Re-ingesting after moving Snowflake
+
+When you point the app at a **new Snowflake instance** (new account, clone, or different DB), re-ingest and re-encode all course data as follows. The first run will create the RAG schema and tables in the new instance; then you re-run the lesson-plan and tagging pipeline for each course you care about.
+
+**1. Update `.env` with the new Snowflake credentials**
+
+In the repo root `.env`, set at least:
+
+- `SNOWFLAKE_HOST` – e.g. `abc12345.us-east-1.aws.snowflakecomputing.com`
+- `SNOWFLAKE_TOKEN` – your Snowflake API token (e.g. programmatic access token)
+- `SNOWFLAKE_WAREHOUSE` – warehouse name
+- `SNOWFLAKE_ROLE` – role name (if required by your instance)
+- `SNOWFLAKE_DATABASE` – database name (default `KNOT` if unset)
+- `SNOWFLAKE_TOKEN_TYPE` – e.g. `PROGRAMMATIC_ACCESS_TOKEN` (default)
+
+Keep `CANVAS_API` and `GEMINI_API_KEY` set so ingestion and embeddings can run.
+
+**2. Ingest all courses (documents + chunking + embeddings)**
+
+From the **ingestion** directory:
+
+```bash
+cd ingestion
+pip install -r requirements.txt   # if needed
+python ingest_course.py
+```
+
+This will:
+
+- Create the database and `RAG` schema and tables in the new Snowflake instance if they don’t exist.
+- Fetch all courses from Canvas (using `CANVAS_API`), then for each course: fetch modules, assignments, files, pages, syllabus; extract text; chunk; embed with Gemini; insert into `KNOT.RAG.documents` and `KNOT.RAG.document_chunks`.
+
+To ingest only one course:
+
+```bash
+python ingest_course.py --course-id <Canvas_course_id>
+```
+
+**3. Build lesson plan and tag chunks (per course)**
+
+For each course that should have learning structure (units/topics/subtopics) and tagged chunks, run, in order:
+
+```bash
+python build_lesson_plan.py --course-id <ID> --course-name "Course Display Name"
+python tag_chunks.py --course-id <ID> [--batch-size 10]
+```
+
+Optionally, run the full concept pipeline (build plan + tag + merge into `public/classNames.json`):
+
+```bash
+python run_concept_generation.py --course-id <ID> --course-name "Course Display Name"
+```
+
+**4. Verify**
+
+- Row counts: `python check_rag_counts.py` (if available) to confirm tables are populated.
+- Conceptual units: `python list_units.py --course-id <ID> --conceptual`
+- Frontend: open the app, go through onboarding or dashboard, and confirm classes and concepts load from the new instance.
+
+**Summary order**
+
+| Step | Command | What it does |
+|------|--------|---------------|
+| 1 | Update `.env` | Point at new Snowflake (host, token, warehouse, role, database). |
+| 2 | `python ingest_course.py` | Create RAG schema/tables; ingest all courses and encode chunks. |
+| 3 | Per course | `build_lesson_plan.py` → `tag_chunks.py` (and optionally `run_concept_generation.py`). |
+
 ## Run
 
 From the **ingestion** directory (so imports resolve):
@@ -84,7 +151,7 @@ Each unit has `unit_id`, `unit_name`, `chunk_count`, and `topics`; each topic ha
 - **`classNames`**: array of course display names (for backward compatibility with onboarding/dashboard).
 - **`updatedAt`**: ISO timestamp.
 
-Running concept generation for one course (Python or API) **merges** that course into `classNames.json`; running for multiple courses (API with `courseIds`) updates or appends each. Existing entries are matched by `courseId` or `className`. The concepts API also writes **`public/concepts.json`** (single-course shape) for compatibility.
+Running concept generation for one course (Python or API) **merges** that course into `classNames.json`; running for multiple courses (API with `courseIds`) updates or appends each. Existing entries are matched by `courseId` or `className`.
 
 **How to test**
 

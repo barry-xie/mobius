@@ -56,7 +56,7 @@ def _merge_course_into_class_names(
         "units": units,
     }
     found = False
-    for i, c in enumerate(classes):
+    for i, c in enumerate(classes):    
         if not isinstance(c, dict):
             continue
         if c.get("courseId") == course_id:

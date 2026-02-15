@@ -426,40 +426,54 @@ def get_chunks_for_course(course_id: str) -> list[dict[str, Any]]:
 
 
 def get_lesson_plan(course_id: str) -> dict[str, Any]:
-    """Return units with nested topics and subtopics for the course."""
+    """Return units with nested topics and subtopics for the course. Uses 3 batched queries."""
     bind = _bind(1, course_id)
+    # 1. All units for the course
     units_sql = f"""
     SELECT unit_id, unit_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units
     WHERE course_id = ? ORDER BY sort_order, unit_id
     """
     units_data = _execute_and_fetch(units_sql, bind)
+    if not units_data:
+        return {"units": []}
+    # 2. All topics for this course (join units to filter by course_id)
+    topics_sql = f"""
+    SELECT t.unit_id, t.topic_id, t.topic_name, t.sort_order
+    FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics t
+    INNER JOIN {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units u ON u.unit_id = t.unit_id
+    WHERE u.course_id = ? ORDER BY u.sort_order, u.unit_id, t.sort_order, t.topic_id
+    """
+    topics_data = _execute_and_fetch(topics_sql, bind)
+    # 3. All subtopics for this course (join topics -> units to filter by course_id)
+    subtopics_sql = f"""
+    SELECT t.topic_id, s.subtopic_id, s.subtopic_name, s.sort_order
+    FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.subtopics s
+    INNER JOIN {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics t ON t.topic_id = s.topic_id
+    INNER JOIN {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.units u ON u.unit_id = t.unit_id
+    WHERE u.course_id = ? ORDER BY t.sort_order, t.topic_id, s.sort_order, s.subtopic_id
+    """
+    subtopics_data = _execute_and_fetch(subtopics_sql, bind)
+    # Index topics by unit_id, subtopics by topic_id
+    topics_by_unit: dict[str, list[dict[str, Any]]] = {}
+    for row in topics_data:
+        uid, tid, tname, torder = row[0], row[1], row[2] or "", row[3] or 0
+        if uid not in topics_by_unit:
+            topics_by_unit[uid] = []
+        topics_by_unit[uid].append({"topic_id": tid, "topic_name": tname, "sort_order": torder, "subtopics": []})
+    subtopics_by_topic: dict[str, list[dict[str, Any]]] = {}
+    for row in subtopics_data:
+        tid, sid, sname, sorder = row[0], row[1], row[2] or "", row[3] or 0
+        if tid not in subtopics_by_topic:
+            subtopics_by_topic[tid] = []
+        subtopics_by_topic[tid].append({"subtopic_id": sid, "subtopic_name": (sname or "").strip(), "sort_order": sorder})
+    # Build nested plan
     plan = {"units": []}
     for row in units_data:
         uid, uname, order = row[0], row[1] or "", row[2] or 0
-        u = {"unit_id": uid, "unit_name": uname, "sort_order": order, "topics": []}
-        tbind = _bind(1, uid)
-        topics_sql = f"""
-        SELECT topic_id, topic_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.topics
-        WHERE unit_id = ? ORDER BY sort_order, topic_id
-        """
-        topics_data = _execute_and_fetch(topics_sql, tbind)
-        for trow in topics_data:
-            tid, tname, torder = trow[0], trow[1] or "", trow[2] or 0
-            topic = {"topic_id": tid, "topic_name": tname, "sort_order": torder, "subtopics": []}
-            sbind = _bind(1, tid)
-            sub_sql = f"""
-            SELECT subtopic_id, subtopic_name, sort_order FROM {SNOWFLAKE_DATABASE}.{SNOWFLAKE_RAG_SCHEMA}.subtopics
-            WHERE topic_id = ? ORDER BY sort_order, subtopic_id
-            """
-            sub_data = _execute_and_fetch(sub_sql, sbind)
-            for srow in sub_data:
-                topic["subtopics"].append({
-                    "subtopic_id": srow[0],
-                    "subtopic_name": (srow[1] or "").strip(),
-                    "sort_order": srow[2] or 0,
-                })
-            u["topics"].append(topic)
-        plan["units"].append(u)
+        topics = topics_by_unit.get(uid, [])
+        for topic in topics:
+            topic["subtopics"] = subtopics_by_topic.get(topic["topic_id"], [])
+        plan["units"].append({"unit_id": uid, "unit_name": uname, "sort_order": order, "topics": topics})
     return plan
 
 

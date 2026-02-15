@@ -1,56 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import type { CourseTree, StudyGoalTree, TreeItem } from "@/lib/types";
-import { mockCourseTrees, mockStudyGoalTrees } from "@/lib/mocks/trees";
-
-interface CanvasClassItem {
-  className: string;
-}
-
-function buildCanvasCourseTrees(classNames: string[]): CourseTree[] {
-  return classNames.map((name, index) => ({
-    source: "canvas",
-    course: {
-      id: index + 1,
-      name,
-      course_code: name,
-      syllabus_body: null,
-      workflow_state: "available",
-    },
-    modules: [],
-    assignments: [],
-  }));
-}
-
-function parseStoredClassNames(rawValue: string | null): string[] {
-  try {
-    const parsed = JSON.parse(rawValue || "[]");
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((name): name is string => typeof name === "string")
-        .map((name) => name.trim())
-        .filter(Boolean);
-    }
-
-    if (parsed && typeof parsed === "object" && Array.isArray((parsed as { classes?: unknown }).classes)) {
-      return ((parsed as { classes: unknown[] }).classes as unknown[])
-        .map((item) => {
-          if (item && typeof item === "object" && "className" in item) {
-            const className = (item as CanvasClassItem).className;
-            return typeof className === "string" ? className.trim() : "";
-          }
-          return "";
-        })
-        .filter(Boolean);
-    }
-
-    return [];
-  } catch {
-    return [];
-  }
-}
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { StudyGoalTree } from "@/lib/types";
+import { mockStudyGoalTrees } from "@/lib/mocks/trees";
+import PhysicsGraph from "./PhysicsGraph";
+import { buildGraphFromClass, getUnitNodeId, type ClassEntry, type ClassNamesPayload, type GraphNode, type GraphLink } from "./utils";
 
 function MindmapNode({
   label,
@@ -61,7 +16,7 @@ function MindmapNode({
   variant?: "center" | "assignment" | "default";
   children?: React.ReactNode;
 }) {
-  const base = "rounded-lg px-4 py-2 font-sans text-sm transition-colors";
+  const base = "rounded-md px-3 py-1.5 font-sans text-xs transition-colors";
   const variants = {
     center: "bg-[#537aad] font-medium text-[#fffbf9]",
     assignment: "border border-[#537aad]/40 bg-[#fffbf9] text-[#537aad]/90",
@@ -71,7 +26,7 @@ function MindmapNode({
     <div className="flex flex-col items-center gap-4">
       <div className={`${base} ${variants[variant]}`}>{label}</div>
       {children && (
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {children}
         </div>
       )}
@@ -80,40 +35,7 @@ function MindmapNode({
 }
 
 function Connector() {
-  return <div className="h-4 w-px bg-[#537aad]/25 sm:h-px sm:w-4 sm:min-w-4" aria-hidden />;
-}
-
-function CourseMindmap({ tree }: { tree: CourseTree }) {
-  const { course, modules, assignments } = tree;
-  const assignmentMap = new Map(assignments.map((a) => [a.id, a]));
-
-  return (
-    <div className="flex flex-col items-center">
-      <MindmapNode label={course.course_code || course.name} variant="center">
-        <Connector />
-        <div className="flex flex-col gap-8 sm:flex-row sm:flex-wrap sm:gap-6">
-          {modules.map((mod) => (
-            <MindmapNode key={mod.id} label={mod.name}>
-              <Connector />
-              <div className="flex flex-wrap justify-center gap-3">
-                {mod.items
-                  ?.filter((item) => item.type !== "SubHeader" || item.title)
-                  .map((item) => {
-                    if (item.type === "Assignment" || item.type === "Quiz") {
-                      const a = item.content_id ? assignmentMap.get(item.content_id) : null;
-                      return (
-                        <MindmapNode key={item.id} label={a?.name || item.title} variant="assignment" />
-                      );
-                    }
-                    return <MindmapNode key={item.id} label={item.title} />;
-                  })}
-              </div>
-            </MindmapNode>
-          ))}
-        </div>
-      </MindmapNode>
-    </div>
-  );
+  return <div className="h-3 w-px bg-[#537aad]/25 sm:h-px sm:w-3 sm:min-w-3" aria-hidden />;
 }
 
 function StudyGoalMindmap({ tree }: { tree: StudyGoalTree }) {
@@ -121,7 +43,7 @@ function StudyGoalMindmap({ tree }: { tree: StudyGoalTree }) {
     <div className="flex flex-col items-center">
       <MindmapNode label={tree.name} variant="center">
         <Connector />
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-2">
           {tree.documents.map((d, i) => (
             <MindmapNode key={`doc-${i}`} label={d.name} variant="assignment" />
           ))}
@@ -134,129 +56,252 @@ function StudyGoalMindmap({ tree }: { tree: StudyGoalTree }) {
   );
 }
 
-export default function DashboardPage() {
-  const [courseTrees, setCourseTrees] = useState<CourseTree[]>(mockCourseTrees);
-  const [studyGoalTrees, setStudyGoalTrees] = useState<StudyGoalTree[]>(mockStudyGoalTrees);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+type DashboardItem =
+  | { id: string; label: string; type: "course"; classEntry: ClassEntry }
+  | { id: string; label: string; type: "goal"; tree: StudyGoalTree };
 
-  const loadFromStorage = useCallback(async () => {
+export default function DashboardPage() {
+  const [studyGoalTrees, setStudyGoalTrees] = useState<StudyGoalTree[]>(mockStudyGoalTrees);
+  const [classNamesPayload, setClassNamesPayload] = useState<ClassNamesPayload | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
+
+  const loadFromStorage = useCallback(() => {
     if (typeof window === "undefined") return;
     const source = localStorage.getItem("knot_onboard_source");
-    if (source === "canvas") {
-      const canvasTrees = buildCanvasCourseTrees(parseStoredClassNames(localStorage.getItem("knot_canvas_class_names")));
-
-      setCourseTrees(canvasTrees);
-      const first = canvasTrees[0];
-      if (first) setSelectedId(`course-${first.course.id}`);
-    } else if (source === "manual") {
+    if (source === "manual") {
       const stored = JSON.parse(localStorage.getItem("knot_study_goals") || "[]");
       setStudyGoalTrees(stored);
       const first = stored[0];
       if (first) setSelectedId(`goal-${first.id}`);
-    } else {
-      // No onboarding - show combined mock
-      setSelectedId(`course-${mockCourseTrees[0]?.course.id ?? ""}`);
     }
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadFromStorage();
   }, [loadFromStorage]);
 
-  const allItems: { id: string; label: string; tree: TreeItem }[] = [
-    ...courseTrees.map((t) => ({ id: `course-${t.course.id}`, label: t.course.course_code || t.course.name, tree: t })),
-    ...studyGoalTrees.map((t) => ({ id: `goal-${t.id}`, label: t.name, tree: t })),
+  useEffect(() => {
+    fetch("/classNames.json")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load"))))
+      .then((data: ClassNamesPayload) => setClassNamesPayload(data))
+      .catch(() => setClassNamesPayload({ classes: [] }));
+  }, []);
+
+  const syncSelectedId = useCallback(() => {
+    const classIds = Array.isArray(classNamesPayload?.classes)
+      ? classNamesPayload.classes.map((c, i) => `class-${String(c.courseId ?? c.className)}-${i}`)
+      : [];
+    const goalIds = studyGoalTrees.map((t) => `goal-${t.id}`);
+    const allIds = [...classIds, ...goalIds];
+    setSelectedId((prev) => {
+      if (prev != null && allIds.includes(prev)) return prev;
+      return classIds[0] ?? goalIds[0] ?? null;
+    });
+    setSelectedUnitId(null);
+    if (classIds.length > 0) {
+      setExpandedCourseIds((prev) => new Set([...prev, classIds[0]]));
+    }
+  }, [classNamesPayload, studyGoalTrees]);
+
+  useEffect(() => {
+    syncSelectedId();
+  }, [syncSelectedId]);
+
+  const allItems: DashboardItem[] = [
+    ...(Array.isArray(classNamesPayload?.classes)
+      ? classNamesPayload.classes.map((c, i) => ({
+          id: `class-${String(c.courseId ?? c.className)}-${i}`,
+          label: c.className,
+          type: "course" as const,
+          classEntry: c,
+        }))
+      : []),
+    ...studyGoalTrees.map((t) => ({
+      id: `goal-${t.id}`,
+      label: t.name,
+      type: "goal" as const,
+      tree: t,
+    })),
   ];
 
   const selected = selectedId ? allItems.find((i) => i.id === selectedId) : null;
 
+  const graphData = useMemo(() => {
+    if (selected?.type === "course") return buildGraphFromClass(selected.classEntry);
+    return { nodes: [] as GraphNode[], links: [] as GraphLink[] };
+  }, [selected?.type === "course" ? selected.classEntry : null]);
+
   return (
-    <div className="flex min-h-screen bg-[#fffbf9] font-sans">
-      {/* Sidebar */}
-      <aside
-        className="flex w-56 shrink-0 flex-col border-r border-[#537aad]/10 bg-[#fffbf9]"
-        style={{ backgroundColor: "color-mix(in srgb, #fffbf9 99%, #537aad 1%)" }}
-      >
-        <div className="flex items-center justify-between border-b border-[#537aad]/10 px-4 py-4">
+    <div className="flex h-screen overflow-hidden bg-[#f8f7f6] font-sans">
+      {/* ── Left sidebar ── */}
+      <aside className="flex h-full w-[200px] shrink-0 flex-col overflow-hidden bg-white/80 backdrop-blur-sm">
+        {/* Brand */}
+        <div className="shrink-0 px-5 pb-2 pt-5">
           <Link href="/" className="font-serif text-[1.05rem] tracking-tight text-[#537aad] hover:opacity-80">
             knot.
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3">
-          <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wider text-[#537aad]/60">
-            courses & goals
+
+        {/* Nav section label */}
+        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3 pt-4">
+          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7a9bc7]">
+            Your courses
           </p>
           {allItems.length === 0 ? (
-            <p className="px-2 text-sm text-[#537aad]/60">no items yet. complete onboarding first.</p>
+            <p className="px-2 text-xs leading-relaxed text-[#7a9bc7]">
+              {classNamesPayload === null
+                ? "Loading..."
+                : "No courses yet. Connect Canvas or add a study goal."}
+            </p>
           ) : (
-            <ul className="space-y-1">
-              {allItems.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(item.id)}
-                    className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                      selectedId === item.id
-                        ? "bg-[#537aad] text-[#fffbf9]"
-                        : "text-[#537aad] hover:bg-[#537aad]/10"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              ))}
+            <ul className="space-y-0.5">
+              {allItems.map((item) => {
+                if (item.type === "goal") {
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(item.id);
+                          setSelectedUnitId(null);
+                        }}
+                        className={`w-full rounded-md px-2.5 py-[7px] text-left text-[11px] font-medium leading-snug transition-all duration-150 ${
+                          selectedId === item.id
+                            ? "bg-[#537aad] text-white shadow-sm"
+                            : "text-[#537aad] hover:bg-[#537aad]/6"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  );
+                }
+                const classId = item.id;
+                const isExpanded = expandedCourseIds.has(classId);
+                const isActive = selectedId === classId;
+                const hasUnits = Array.isArray(item.classEntry.units) && item.classEntry.units.length > 0;
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(classId);
+                        setSelectedUnitId(null);
+                        if (hasUnits) {
+                          setExpandedCourseIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(classId)) next.delete(classId);
+                            else next.add(classId);
+                            return next;
+                          });
+                        }
+                      }}
+                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-[7px] text-left text-[11px] font-medium leading-snug transition-all duration-150 ${
+                        isActive
+                          ? "bg-[#537aad] text-white shadow-sm"
+                          : "text-[#537aad] hover:bg-[#537aad]/6"
+                      }`}
+                    >
+                      <span className="truncate">{item.label}</span>
+                      {hasUnits && (
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          className={`shrink-0 ml-1 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""} ${isActive ? "opacity-70" : "opacity-40"}`}
+                        >
+                          <path d="M4.5 2.5L8 6L4.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                    {hasUnits && isExpanded && (
+                      <ul className="ml-3 mt-0.5 space-y-px border-l border-[#537aad]/10 pl-2.5 pb-1">
+                        {item.classEntry.units!.map((unit, i) => {
+                          const unitNodeId = getUnitNodeId(item.classEntry, unit, i);
+                          const isUnitSelected = selectedUnitId === unitNodeId;
+                          return (
+                            <li key={unit.unit_id ?? i}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUnitId(unitNodeId)}
+                                className={`block w-full truncate rounded-[5px] px-2 py-[5px] text-left text-[11px] transition-all duration-150 ${
+                                  isUnitSelected
+                                    ? "bg-[#537aad]/10 font-medium text-[#537aad]"
+                                    : "text-[#7a9bc7] hover:bg-[#537aad]/4 hover:text-[#537aad]"
+                                }`}
+                              >
+                                {unit.unit_name ?? "Unit"}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </nav>
-        <div className="border-t border-[#537aad]/10 p-3">
+
+        {/* Bottom action */}
+        <div className="shrink-0 border-t border-black/4 px-3 py-3">
           <Link
             href="/onboard"
-            className="block rounded-lg border border-[#537aad]/40 px-3 py-2 text-center text-sm text-[#537aad] transition-colors hover:bg-[#537aad]/5"
+            className="flex items-center justify-center gap-1.5 rounded-md bg-[#537aad]/6 px-2.5 py-[7px] text-[11px] font-medium text-[#537aad] transition-all duration-150 hover:bg-[#537aad]/10"
           >
-            add course or goal
+            <svg width="12" height="12" viewBox="0 0 12 12" className="opacity-60">
+              <path d="M6 2.5V9.5M2.5 6H9.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            Add course
           </Link>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="border-b border-[#537aad]/10 px-6 py-4 sm:px-8">
-          <h1 className="font-serif text-xl font-normal tracking-tight text-[#537aad] md:text-2xl">
-            {selected ? selected.label : "select a course or goal"}
-          </h1>
-          <p className="mt-1 font-sans text-sm text-[#537aad]/80">
-            {selected?.tree.source === "canvas"
-              ? "topics (modules), assignments, and exams from Canvas"
-              : "documents and links for your study goal"}
-          </p>
+      {/* Sidebar divider with shadow */}
+      <div className="w-px bg-black/6" />
+
+      {/* ── Main content ── */}
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f8f7f6]">
+        {/* Header */}
+        <div className="shrink-0 flex items-center gap-3 bg-white/60 backdrop-blur-sm px-5 py-3 border-b border-black/4">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-serif text-[15px] font-normal tracking-tight text-[#537aad]">
+              {selected ? selected.label : "Select a course"}
+            </h1>
+          </div>
+          {selected?.type === "course" && (
+            <span className="shrink-0 rounded-full bg-[#537aad]/[0.07] px-2.5 py-1 text-[10px] font-medium text-[#7a9bc7]">
+              {graphData.nodes.length > 1 ? `${graphData.nodes.length - 1} units` : "No units"}
+            </span>
+          )}
         </div>
 
-        <div className="p-6 sm:p-8 md:p-10">
+        {/* Graph area */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
           {!selected ? (
-            <div className="rounded-xl border border-dashed border-[#537aad]/30 bg-[#fffbf9] p-12 text-center">
-              <p className="text-[#537aad]/70">select a course or study goal from the sidebar.</p>
+            <div className="flex flex-1 items-center justify-center rounded-xl bg-white/40">
+              <div className="text-center">
+                <p className="text-sm text-[#7a9bc7]">Select a course from the sidebar to begin.</p>
+              </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-8 sm:p-10 md:p-12">
-              {selected.tree.source === "canvas" ? (
-                <CourseMindmap tree={selected.tree as CourseTree} />
+            <div className="min-h-0 flex-1">
+              {selected.type === "course" ? (
+                <PhysicsGraph
+                  graphData={graphData}
+                  selectedNodeId={selectedUnitId}
+                  onUnitSelect={setSelectedUnitId}
+                />
               ) : (
-                <StudyGoalMindmap tree={selected.tree as StudyGoalTree} />
+                <div className="flex h-full items-center justify-center rounded-xl bg-white/40 p-6">
+                  <StudyGoalMindmap tree={selected.tree} />
+                </div>
               )}
             </div>
           )}
-
-          <div className="mt-8 flex flex-wrap gap-6 font-sans text-sm text-[#537aad]/80">
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-md bg-[#537aad]" />
-              topic / unit
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-md border border-[#537aad]/40" />
-              assignment / exam
-            </span>
-          </div>
         </div>
       </main>
     </div>

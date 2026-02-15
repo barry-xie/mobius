@@ -36,6 +36,7 @@ CHUNK_OVERLAP_CHARS = 150
 # Embedding (Gemini; 768 dims for Snowflake storage)
 GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-001"
 GEMINI_EMBEDDING_DIM = 768
+EMBED_BATCH_SIZE = 50  # texts per API call for batch embedding (ingestion)
 
 # Generation (practice questions)
 GEMINI_GENERATION_MODEL = "gemini-2.0-flash"

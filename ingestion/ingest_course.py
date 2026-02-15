@@ -22,7 +22,7 @@ from canvas_client import (
 )
 from chunking import chunk_text
 from config import CANVAS_API_KEY
-from embedding import embed_text
+from embedding import embed_texts_batch
 from extractors import extract_text_from_file, html_to_text
 from snowflake_rag import (
     delete_chunks_by_document_id,
@@ -60,6 +60,7 @@ def _ingest_document(
 ) -> None:
     if not raw_text or not raw_text.strip():
         return
+    display_title = (title or document_id).strip()[:60]
     insert_document(
         document_id=document_id,
         course_id=course_id,
@@ -71,9 +72,10 @@ def _ingest_document(
     delete_chunks_by_document_id(document_id)
     document_title = title or document_id
     chunks = chunk_text(raw_text)
-    for i, chunk_text_val in enumerate(chunks):
+    print(f"    embedding {len(chunks)} chunks: {display_title}...", flush=True)
+    embeddings = embed_texts_batch(chunks)
+    for chunk_text_val, embedding in zip(chunks, embeddings):
         chunk_id = generate_chunk_id()
-        embedding = embed_text(chunk_text_val)
         insert_chunk(
             chunk_id=chunk_id,
             document_id=document_id,
@@ -85,6 +87,7 @@ def _ingest_document(
             course_name=course_name,
             module_name=module_name,
         )
+    print(f"    stored {len(chunks)} chunks: {display_title}", flush=True)
 
 
 def ingest_course(course_id_arg: str | None = None) -> None:
@@ -93,20 +96,24 @@ def ingest_course(course_id_arg: str | None = None) -> None:
         print("Error: CANVAS_API not set in .env", file=sys.stderr)
         sys.exit(1)
 
+    print("Setting up RAG schema...", flush=True)
     ensure_rag_schema()
+    print("Fetching courses from Canvas...", flush=True)
     courses = fetch_courses(token)
     if course_id_arg:
         courses = [c for c in courses if str(c.get("id")) == str(course_id_arg)]
         if not courses:
             print(f"Error: course id {course_id_arg} not found", file=sys.stderr)
             sys.exit(1)
+    print(f"Found {len(courses)} course(s).", flush=True)
 
     for course in courses:
         cid = str(course["id"])
         cname = (course.get("name") or "").strip() or cid
-        print(f"Course: {cid} {cname}")
+        print(f"\nCourse: {cid} {cname}", flush=True)
         insert_course(course_id=cid, course_name=cname)
 
+        print("  Fetching modules...", flush=True)
         modules = fetch_modules(token, cid)
         item_map = _module_item_map(modules)
         module_name_by_id = {
@@ -121,6 +128,7 @@ def ingest_course(course_id_arg: str | None = None) -> None:
             )
 
         # Syllabus
+        print("  Fetching syllabus...", flush=True)
         syllabus_html = fetch_syllabus(token, cid)
         if syllabus_html:
             text = html_to_text(syllabus_html)
@@ -136,7 +144,9 @@ def ingest_course(course_id_arg: str | None = None) -> None:
             )
 
         # Assignments (description HTML)
-        for a in fetch_assignments(token, cid):
+        assignments = fetch_assignments(token, cid)
+        print(f"  Ingesting {len(assignments)} assignment(s)...", flush=True)
+        for a in assignments:
             desc = a.get("description") or ""
             text = html_to_text(desc)
             if not text.strip():
@@ -155,7 +165,9 @@ def ingest_course(course_id_arg: str | None = None) -> None:
             )
 
         # Pages (body HTML)
-        for p in fetch_pages(token, cid):
+        pages = fetch_pages(token, cid)
+        print(f"  Ingesting {len(pages)} page(s)...", flush=True)
+        for p in pages:
             url_slug = p.get("url") or p.get("page_id") or ""
             if not url_slug:
                 continue
@@ -179,7 +191,9 @@ def ingest_course(course_id_arg: str | None = None) -> None:
             )
 
         # Files (download and extract text)
-        for f in fetch_files(token, cid):
+        files = fetch_files(token, cid)
+        print(f"  Downloading & ingesting {len(files)} file(s)...", flush=True)
+        for f in files:
             url = f.get("url")
             if not url:
                 continue
@@ -203,7 +217,7 @@ def ingest_course(course_id_arg: str | None = None) -> None:
                 module_name=module_name_by_id.get(mod_id, "") if mod_id else "",
             )
 
-    print("Ingest done.")
+    print("\nIngest done.", flush=True)
 
 
 def main() -> None:

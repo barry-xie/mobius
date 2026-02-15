@@ -25,14 +25,17 @@ def html_to_text(html: str | None) -> str:
 
 
 def pdf_to_text(data: bytes) -> str:
-    """Extract text from PDF bytes. Returns empty string on failure."""
+    """Extract text from PDF bytes. Skips bad pages; returns empty string if whole PDF fails."""
     try:
         reader = PdfReader(io.BytesIO(data))
         parts = []
         for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                parts.append(t)
+            try:
+                t = page.extract_text()
+                if t:
+                    parts.append(t)
+            except Exception:
+                continue
         return "\n\n".join(parts)
     except Exception:
         return ""
