@@ -32,6 +32,8 @@ export default function OnboardPage() {
   const [canvasLoading, setCanvasLoading] = useState(false);
   const [canvasLoadingPhrase, setCanvasLoadingPhrase] = useState(LOADING_PHRASES[0]);
   const [canvasError, setCanvasError] = useState("");
+  const [fetchedCourses, setFetchedCourses] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<Set<string>>(new Set());
   const [studyGoalName, setStudyGoalName] = useState("");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
@@ -94,19 +96,48 @@ export default function OnboardPage() {
         throw new Error(typeof data?.error === "string" ? data.error : "Failed to load Canvas data");
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("knot_canvas_token", token);
-        localStorage.setItem("knot_canvas_class_names", JSON.stringify(data?.classNames ?? []));
-        localStorage.setItem("knot_onboard_source", "canvas");
+      const classNames = Array.isArray(data?.classNames)
+        ? data.classNames.filter((n): n is string => typeof n === "string").map((n) => n.trim()).filter(Boolean)
+        : [];
+
+      if (classNames.length === 0) {
+        setCanvasError("no courses found. check that your token has access to courses with assignments or files.");
+        return;
       }
 
-      router.push("/dashboard");
+      const sorted = [...classNames].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+      setFetchedCourses(sorted);
+      setSelectedCourses(new Set(sorted));
     } catch (err) {
       setCanvasError(err instanceof Error ? err.message : "Failed to load Canvas data");
     } finally {
       setCanvasLoading(false);
     }
   };
+
+  const handleCourseSelectionContinue = () => {
+    const selected = Array.from(selectedCourses);
+    if (selected.length === 0) return;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("knot_canvas_token", canvasToken.trim());
+      localStorage.setItem("knot_canvas_class_names", JSON.stringify(selected));
+      localStorage.setItem("knot_onboard_source", "canvas");
+    }
+    router.push("/dashboard");
+  };
+
+  const toggleCourse = (name: string) => {
+    setSelectedCourses((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const selectAllCourses = () => setSelectedCourses(new Set(fetchedCourses));
+  const deselectAllCourses = () => setSelectedCourses(new Set());
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +224,82 @@ export default function OnboardPage() {
               </button>
             </div>
           ) : mode === "canvas" ? (
+            fetchedCourses.length > 0 ? (
+              <div className="mt-10">
+                <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-5">
+                  <h2 className="font-medium lowercase text-[#537aad]">
+                    choose courses to display
+                  </h2>
+                  <p className="mt-1 text-sm lowercase text-[#537aad]/70">
+                    select which classes appear on your dashboard. uncheck old or irrelevant courses.
+                  </p>
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllCourses}
+                      className="rounded-lg border border-[#537aad]/30 px-3 py-1.5 text-xs font-medium lowercase text-[#537aad] transition-colors hover:bg-[#537aad]/10"
+                    >
+                      select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deselectAllCourses}
+                      className="rounded-lg border border-[#537aad]/30 px-3 py-1.5 text-xs font-medium lowercase text-[#537aad] transition-colors hover:bg-[#537aad]/10"
+                    >
+                      deselect all
+                    </button>
+                  </div>
+                  <ul className="mt-4 max-h-72 space-y-1.5 overflow-y-auto rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-2">
+                    {fetchedCourses.map((name) => (
+                      <li key={name}>
+                        <label
+                          className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-all ${
+                            selectedCourses.has(name)
+                              ? "bg-[#537aad]/10 border border-[#537aad]/25"
+                              : "border border-transparent hover:bg-[#537aad]/5"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCourses.has(name)}
+                            onChange={() => toggleCourse(name)}
+                            className="h-4 w-4 rounded border-[#537aad]/40 accent-[#537aad] focus:ring-2 focus:ring-[#537aad]/30 focus:ring-offset-0"
+                          />
+                          <span className="text-sm normal-case text-[#537aad]">{name}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-xs lowercase text-[#537aad]/60">
+                    {selectedCourses.size} of {fetchedCourses.length} selected
+                  </p>
+                </div>
+                <div className="mt-8 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFetchedCourses([]);
+                      setSelectedCourses(new Set());
+                    }}
+                    className="flex items-center gap-1.5 rounded-lg border border-[#537aad]/40 px-4 py-2 text-sm font-medium lowercase text-[#537aad] transition-colors hover:bg-[#537aad]/5"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                    back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCourseSelectionContinue}
+                    disabled={selectedCourses.size === 0}
+                    className="rounded-lg px-4 py-2 text-sm font-medium lowercase text-[#fffbf9] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #537aad 0%, #6b8fc4 100%)" }}
+                  >
+                    continue to dashboard
+                  </button>
+                </div>
+              </div>
+            ) : (
             <form onSubmit={handleCanvasSubmit} className="mt-10">
               <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-5">
                 <label htmlFor="token" className="block font-medium lowercase text-[#537aad]">
@@ -235,6 +342,7 @@ export default function OnboardPage() {
                 </button>
               </div>
             </form>
+            )
           ) : (
             <form onSubmit={handleManualSubmit} className="mt-10">
               <div className="rounded-xl border border-[#537aad]/15 bg-[#fffbf9] p-5">

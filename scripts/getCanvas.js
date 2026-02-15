@@ -372,8 +372,8 @@ function createCanvasClient(token, apiBase = DEFAULT_API_BASE) {
     try {
       return await getAllPages(path, params);
     } catch (err) {
-      if (err?.status === 401 || err?.status === 403) {
-        console.warn(`Skipping unauthorized endpoint: ${path}`);
+      if (err?.status === 401 || err?.status === 403 || err?.status === 404) {
+        console.warn(`Skipping endpoint (${err?.status}): ${path}`);
         return [];
       }
       throw err;
@@ -404,7 +404,7 @@ function createCanvasClient(token, apiBase = DEFAULT_API_BASE) {
         safeGetAllPages(`/courses/${course.id}/files`),
       ]);
 
-      if (assignments.length > 0 && files.length > 0) {
+      if (assignments.length > 0 || files.length > 0) {
         const name = toText(course.name).trim();
         if (name.length > 0) classNames.push(name);
       }
