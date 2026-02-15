@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas Explorer</title>
+</head>
+<body>
+  <h1>Canvas Course Explorer</h1>
+  <label for="apiKey">Canvas API key:</label>
+  <input id="apiKey" type="password" />
+  <button id="loadBtn" type="button">Enter</button>
+  <p id="status">Enter API key, then click Enter.</p>
+  <div id="app"></div>
+
+  <script>
+    function text(value) {
+      return value == null || value === '' ? 'N/A' : String(value);
+    }
+
+    function rewriteAssignmentUrl(rawUrl) {
+      if (!rawUrl) return '';
+      try {
+        const u = new URL(rawUrl);
+        u.hostname = 'canvas.vt.edu';
+        u.pathname = u.pathname
+          .replace(/\/courses\/(\d{11})(\d+)/, '/courses/$2')
+          .replace(/\/assignments\/(.{5})([^/?#]*)/, '/assignments/$2');
+        return u.toString();
+      } catch {
+        return rawUrl;
+      }
+    }
+
+    function openDescriptionPage(title, descriptionHtml) {
+      const safeTitle = text(title);
+      const body = descriptionHtml || '<p>No description</p>';
+      document.open();
+      document.write(`<!doctype html><html><head><meta charset="UTF-8"><title>${safeTitle}</title></head><body><p><a href="./canvas_explorer.html">Back to explorer</a></p><h1>${safeTitle}</h1>${body}</body></html>`);
+      document.close();
+    }
+
+    const STORAGE_KEY = 'canvas_explorer_data';
+
+    function saveToStorage(data) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn('Could not save to sessionStorage:', e);
+      }
+    }
+
+    function loadFromStorage() {
+      try {
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : null;
+      } catch (e) {
+        console.warn('Could not load from sessionStorage:', e);
+        return null;
+      }
+    }
+
+    function buildExplorer(data) {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+
+      const courses = Array.isArray(data.courses) ? data.courses : [];
+
+      if (courses.length === 0) {
+        app.textContent = 'No courses found.';
+        return;
+      }
+
+      saveToStorage(data);
+
+      const root = document.createElement('ul');
+
+      for (const course of courses) {
+        const courseLi = document.createElement('li');
+
+        const courseDetails = document.createElement('details');
+        courseDetails.open = false;
+
+        const courseSummary = document.createElement('summary');
+        courseSummary.textContent = text(course.name);
+        courseDetails.appendChild(courseSummary);
+
+        const contentList = document.createElement('ul');
+
+        const syllabusLi = document.createElement('li');
+        const syllabusLabel = document.createElement('span');
+        syllabusLabel.textContent = 'Syllabus | ';
+        const syllabusLink = document.createElement('a');
+        syllabusLink.href = '#';
+        syllabusLink.textContent = 'description';
+        syllabusLink.addEventListener('click', (e) => {
+          e.preventDefault();
+          openDescriptionPage(`${text(course.name)} - Syllabus`, course.syllabus);
+        });
+        syllabusLi.appendChild(syllabusLabel);
+        syllabusLi.appendChild(syllabusLink);
+
+        const assignmentsLi = document.createElement('li');
+        const assignmentsDetails = document.createElement('details');
+        const assignmentsSummary = document.createElement('summary');
+        assignmentsSummary.textContent = 'Assignments';
+        assignmentsDetails.appendChild(assignmentsSummary);
+
+        const assignments = Array.isArray(course.assignments) ? course.assignments : [];
+        const assignmentsList = document.createElement('ul');
+        if (assignments.length === 0) {
+          const empty = document.createElement('li');
+          empty.textContent = 'No assignments';
+          assignmentsList.appendChild(empty);
+        } else {
+          for (const a of assignments) {
+            const item = document.createElement('li');
+            const name = document.createElement('span');
+            const submissionTypes = Array.isArray(a.submission_types) ? a.submission_types.join(', ') : 'N/A';
+            name.textContent = `${text(a.name)} | due: ${text(a.due_at)} | unlock: ${text(a.unlock_at)} | lock: ${text(a.lock_at)} | submission_types: ${text(submissionTypes)} | `;
+
+            const link = document.createElement('a');
+            link.href = rewriteAssignmentUrl(a.html_url);
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'open';
+
+            const descSep = document.createElement('span');
+            descSep.textContent = ' | ';
+
+            const descLink = document.createElement('a');
+            descLink.href = '#';
+            descLink.textContent = 'description';
+            descLink.addEventListener('click', (e) => {
+              e.preventDefault();
+              openDescriptionPage(a.name, a.description);
+            });
+
+            item.appendChild(name);
+            if (a.html_url) item.appendChild(link);
+            item.appendChild(descSep);
+            item.appendChild(descLink);
+            assignmentsList.appendChild(item);
+          }
+        }
+        assignmentsDetails.appendChild(assignmentsList);
+        assignmentsLi.appendChild(assignmentsDetails);
+
+        const filesLi = document.createElement('li');
+        const filesDetails = document.createElement('details');
+        const filesSummary = document.createElement('summary');
+        filesSummary.textContent = 'Files';
+        filesDetails.appendChild(filesSummary);
+
+        const files = Array.isArray(course.files) ? course.files : [];
+        const filesList = document.createElement('ul');
+        if (files.length === 0) {
+          const empty = document.createElement('li');
+          empty.textContent = 'No files';
+          filesList.appendChild(empty);
+        } else {
+          for (const f of files) {
+            const item = document.createElement('li');
+            const name = document.createElement('span');
+            name.textContent = `${text(f.display_name)} | `;
+
+            const link = document.createElement('a');
+            link.href = text(f.url);
+            link.textContent = 'download';
+
+            item.appendChild(name);
+            if (f.url) item.appendChild(link);
+            filesList.appendChild(item);
+          }
+        }
+        filesDetails.appendChild(filesList);
+        filesLi.appendChild(filesDetails);
+
+        contentList.appendChild(syllabusLi);
+        contentList.appendChild(assignmentsLi);
+        contentList.appendChild(filesLi);
+        courseDetails.appendChild(contentList);
+        courseLi.appendChild(courseDetails);
+        root.appendChild(courseLi);
+      }
+
+      app.appendChild(root);
+    }
+
+    async function loadCanvasData() {
+      const token = document.getElementById('apiKey').value.replace(/[\r\n\t ]+/g, '').trim();
+      if (!token) {
+        document.getElementById('status').textContent = 'Please enter a Canvas API key.';
+        return;
+      }
+
+      document.getElementById('status').textContent = 'Loading from Canvas API...';
+      document.getElementById('app').innerHTML = '';
+
+      try {
+        const res = await fetch('/api/canvas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
+
+        document.getElementById('status').textContent = `Loaded ${data.courses?.length ?? 0} courses (active: ${data.active_course_count ?? 0}).`;
+        buildExplorer(data);
+      } catch (err) {
+        document.getElementById('status').textContent = err.message;
+      }
+    }
+
+    document.getElementById('loadBtn').addEventListener('click', loadCanvasData);
+    document.getElementById('apiKey').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loadCanvasData();
+    });
+
+    // Restore from sessionStorage on page load
+    (function restoreFromStorage() {
+      const cached = loadFromStorage();
+      if (cached && cached.courses && cached.courses.length > 0) {
+        document.getElementById('status').textContent = `Loaded ${cached.courses.length} courses (active: ${cached.active_course_count ?? cached.courses.length}) from cache.`;
+        buildExplorer(cached);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env and secrets - never commit
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python (ingestion)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Node (duplicate for repo root)
+node_modules/
+
+# Misc
+*.log
