@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getTasks } from "@/lib/api/tasks";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 const WELCOME_MESSAGE: Message = {
   role: "assistant",
-  content: "Hey! Feel free to ask me anything about your classes, learning progression, or study strategies. I have access to all your course data.",
+  content: "Hey! Feel free to ask me anything about your classes, tasks, learning progression, or study strategies. I have access to all your course and task data.",
 };
 
 const STORAGE_KEY = "knot_unit_test_results_";
@@ -64,6 +65,7 @@ export default function ChatWidget({ rightOffset = 0 }: { rightOffset?: number }
         body: JSON.stringify({
           messages: newMessages.filter((m) => m !== WELCOME_MESSAGE),
           masteryData: gatherMasteryData(),
+          taskData: getTasks(),
         }),
       });
       const data = await res.json();

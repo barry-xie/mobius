@@ -35,19 +35,23 @@ export async function POST(request: Request) {
 
     // Load any stored mastery data passed from the client
     const masteryData: Record<string, unknown> = body.masteryData ?? {};
+    const taskData: unknown[] = Array.isArray(body.taskData) ? body.taskData : [];
 
     const systemPrompt = `You are a helpful, friendly academic assistant for "knot.", an educational platform that helps students track and improve their learning across their courses.
 
-You have access to the student's course data (from their Canvas LMS integration) below. Use it to answer questions about their classes, units, topics, subtopics, and learning progression.
+You have access to the student's course data (from their Canvas LMS integration), their tasks (exams, assignments, etc.), and mastery data. Use this to answer questions about their classes, tasks, units, topics, subtopics, deadlines, and learning progression.
 
 COURSE DATA (from classNames.json):
 ${classData}
+
+${taskData.length > 0 ? `TASKS (exams, assignments the student has created):\n${JSON.stringify(taskData, null, 2)}\nEach task has: name, deadline (YYYY-MM-DD), courseName, and units with topics/subtopics to study.` : "The student has not created any tasks yet."}
 
 ${Object.keys(masteryData).length > 0 ? `MASTERY DATA (from diagnostic tests the student has taken):\n${JSON.stringify(masteryData, null, 2)}` : "The student has not taken any diagnostic tests yet."}
 
 Guidelines:
 - Be concise but warm. Use a conversational, supportive tone.
 - When discussing courses, reference actual course names, unit names, topics, and subtopics from the data.
+- When discussing tasks (exams, assignments), reference their actual task names, deadlines, and the units/topics they cover. Help them prepare by summarizing scope and suggesting study priorities.
 - If asked about mastery or progress, reference their actual scores when available.
 - If a course has no units/topics yet, let them know that course data is still syncing.
 - For study advice, be specific to their actual topics and weak areas.

@@ -6,7 +6,10 @@ import type { StudyGoalTree } from "@/lib/types";
 import { mockStudyGoalTrees } from "@/lib/mocks/trees";
 import PhysicsGraph from "./PhysicsGraph";
 import ChatWidget from "./ChatWidget";
+import TaskModal from "./TaskModal";
+import TaskView from "./TaskView";
 import { buildGraphFromClass, getUnitNodeId, type ClassEntry, type ClassNamesPayload, type GraphNode, type GraphLink } from "./utils";
+import { getTasks, type Task } from "@/lib/api/tasks";
 
 function MindmapNode({
   label,
@@ -67,6 +70,10 @@ export default function DashboardPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [tasksVersion, setTasksVersion] = useState(0);
 
   const loadFromStorage = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -134,6 +141,28 @@ export default function DashboardPage() {
     return { nodes: [] as GraphNode[], links: [] as GraphLink[] };
   }, [selected?.type === "course" ? selected.classEntry : null]);
 
+  // All tasks — load from localStorage only after mount to avoid hydration mismatch
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  useEffect(() => {
+    setAllTasks(getTasks());
+  }, [tasksVersion]);
+
+  const selectedTask = useMemo(() => {
+    if (!selectedTaskId) return null;
+    return allTasks.find((t) => t.id === selectedTaskId) ?? null;
+  }, [selectedTaskId, allTasks]);
+
+  // Course options for the task modal
+  const courseOptions = useMemo(() => {
+    return allItems
+      .filter((i): i is DashboardItem & { type: "course" } => i.type === "course")
+      .map((i) => ({
+        courseId: String(i.classEntry.courseId ?? i.classEntry.className),
+        className: i.classEntry.className,
+        classEntry: i.classEntry,
+      }));
+  }, [allItems]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f7f6] font-sans">
       {/* ── Left sidebar ── */}
@@ -145,8 +174,72 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* Nav section label */}
+        {/* Nav */}
         <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3 pt-4">
+          {/* ── Your tasks ── */}
+          <div className="mb-3">
+            <div className="mb-1.5 flex items-center justify-between px-2">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7a9bc7]">
+                Your tasks
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowTaskModal(true)}
+                className="flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] text-[#7a9bc7]/60 transition-all hover:bg-[#537aad]/6 hover:text-[#537aad]"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60">
+                  <path d="M5 2v6M2 5h6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                Add
+              </button>
+            </div>
+            {allTasks.length === 0 ? (
+              <p className="px-2 text-[10px] leading-relaxed text-[#7a9bc7]/50">
+                No tasks yet.
+              </p>
+            ) : (
+              <ul className="space-y-px">
+                {allTasks.map((t) => {
+                  const isTaskSelected = selectedTaskId === t.id;
+                  const days = Math.ceil((new Date(t.deadline + "T23:59:59").getTime() - Date.now()) / 86400000);
+                  return (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTaskId(t.id);
+                          setSelectedUnitId(null);
+                          // Auto-select the task's course
+                          const courseItem = allItems.find(
+                            (i) => i.type === "course" && String(i.classEntry.courseId ?? i.classEntry.className) === t.courseId
+                          );
+                          if (courseItem) setSelectedId(courseItem.id);
+                        }}
+                        title={`${t.name} — ${t.courseName}`}
+                        className={`flex w-full items-center justify-between rounded-md px-2.5 py-[6px] text-left text-[11px] transition-all duration-150 ${
+                          isTaskSelected
+                            ? "bg-[#537aad]/10 font-medium text-[#537aad]"
+                            : "text-[#537aad]/70 hover:bg-[#537aad]/4 hover:text-[#537aad]"
+                        }`}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                        <span
+                          className="ml-1.5 shrink-0 text-[9px] tabular-nums"
+                          style={{ color: days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#7a9bc7" }}
+                        >
+                          {days < 0 ? "overdue" : days === 0 ? "today" : `${days}d`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="mb-3 h-px bg-black/4" />
+
+          {/* ── Your courses ── */}
           <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7a9bc7]">
             Your courses
           </p>
@@ -167,6 +260,7 @@ export default function DashboardPage() {
                         onClick={() => {
                           setSelectedId(item.id);
                           setSelectedUnitId(null);
+                          setSelectedTaskId(null);
                         }}
                         title={item.label}
                         className={`w-full truncate rounded-md px-2.5 py-[7px] text-left text-[11px] font-medium leading-snug transition-all duration-150 ${
@@ -182,7 +276,7 @@ export default function DashboardPage() {
                 }
                 const classId = item.id;
                 const isExpanded = expandedCourseIds.has(classId);
-                const isActive = selectedId === classId;
+                const isActive = selectedId === classId && !selectedTaskId;
                 const hasUnits = Array.isArray(item.classEntry.units) && item.classEntry.units.length > 0;
                 return (
                   <li key={item.id}>
@@ -191,6 +285,7 @@ export default function DashboardPage() {
                       onClick={() => {
                         setSelectedId(classId);
                         setSelectedUnitId(null);
+                        setSelectedTaskId(null);
                         if (hasUnits) {
                           setExpandedCourseIds((prev) => {
                             const next = new Set(prev);
@@ -222,12 +317,12 @@ export default function DashboardPage() {
                       <ul className="ml-3 mt-0.5 space-y-px border-l border-[#537aad]/10 pl-2.5 pb-1">
                         {item.classEntry.units!.map((unit, i) => {
                           const unitNodeId = getUnitNodeId(item.classEntry, unit, i);
-                          const isUnitSelected = selectedUnitId === unitNodeId;
+                          const isUnitSelected = selectedUnitId === unitNodeId && !selectedTaskId;
                           return (
                             <li key={unit.unit_id ?? i}>
                               <button
                                 type="button"
-                                onClick={() => setSelectedUnitId(unitNodeId)}
+                                onClick={() => { setSelectedUnitId(unitNodeId); setSelectedTaskId(null); }}
                                 title={unit.unit_name ?? "Unit"}
                                 className={`block w-full truncate rounded-[5px] px-2 py-[5px] text-left text-[11px] transition-all duration-150 ${
                                   isUnitSelected
@@ -282,7 +377,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Graph area */}
+        {/* Graph / Task area */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
           {!selected ? (
             <div className="flex flex-1 items-center justify-center rounded-xl bg-white/40">
@@ -290,13 +385,28 @@ export default function DashboardPage() {
                 <p className="text-sm text-[#7a9bc7]">Select a course from the sidebar to begin.</p>
               </div>
             </div>
+          ) : selectedTask ? (
+            <div className="min-h-0 flex-1">
+              <TaskView
+                task={selectedTask}
+                onClose={() => setSelectedTaskId(null)}
+                onDeleted={() => {
+                  setSelectedTaskId(null);
+                  setTasksVersion((v) => v + 1);
+                }}
+                onEdit={() => {
+                  setEditingTask(selectedTask);
+                  setShowTaskModal(true);
+                }}
+              />
+            </div>
           ) : (
             <div className="min-h-0 flex-1">
               {selected.type === "course" ? (
                 <PhysicsGraph
                   graphData={graphData}
                   selectedNodeId={selectedUnitId}
-                  onUnitSelect={setSelectedUnitId}
+                  onUnitSelect={(id) => { setSelectedUnitId(id); setSelectedTaskId(null); }}
                   courseName={selected.classEntry.className}
                 />
               ) : (
@@ -309,7 +419,29 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      <ChatWidget rightOffset={selectedUnitId ? 340 : 0} />
+      <ChatWidget rightOffset={selectedUnitId && !selectedTaskId ? 340 : 0} />
+
+      {/* Task creation/edit modal */}
+      {showTaskModal && courseOptions.length > 0 && (
+        <TaskModal
+          courses={courseOptions}
+          initialCourseId={editingTask?.courseId}
+          existingTask={editingTask ?? undefined}
+          onClose={() => { setShowTaskModal(false); setEditingTask(null); }}
+          onSaved={(task) => {
+            setShowTaskModal(false);
+            setEditingTask(null);
+            setTasksVersion((v) => v + 1);
+            setSelectedTaskId(task.id);
+            setSelectedUnitId(null);
+            // Auto-select the task's course
+            const courseItem = allItems.find(
+              (i) => i.type === "course" && String(i.classEntry.courseId ?? i.classEntry.className) === task.courseId
+            );
+            if (courseItem) setSelectedId(courseItem.id);
+          }}
+        />
+      )}
     </div>
   );
 }
