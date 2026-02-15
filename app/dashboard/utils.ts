@@ -38,6 +38,11 @@ export type GraphNode = {
   radius: number;
   targetRadius?: number;
   variant: "center" | "concept";
+  /** Full unit data for sidebar (topics/subtopics) when node is a unit */
+  unitData?: UnitEntry;
+  /** Initial position to reduce physics jitter on first render */
+  x?: number;
+  y?: number;
 };
 
 export type GraphLink = { source: string; target: string };
@@ -52,29 +57,18 @@ function slugify(s: string): string {
   return s.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase() || `node-${hash(s)}`;
 }
 
-/** Extract flat concept names from ClassEntry. */
-function extractConcepts(entry: ClassEntry): string[] {
-  if (Array.isArray(entry.concepts) && entry.concepts.length > 0) {
-    return entry.concepts.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+/** Extract only UNITS for bubblemap nodes. Topics/subtopics shown in sidebar on click. */
+function extractUnits(entry: ClassEntry): Array<{ name: string; unitData: UnitEntry }> {
+  if (Array.isArray(entry.units) && entry.units.length > 0) {
+    return entry.units
+      .filter((u): u is UnitEntry => u != null && typeof u?.unit_name === "string" && u.unit_name.trim().length > 0)
+      .map((unit) => ({ name: unit.unit_name!.trim(), unitData: unit }));
   }
-  if (Array.isArray(entry.units)) {
-    const names: string[] = [];
-    for (const unit of entry.units) {
-      if (typeof unit?.unit_name === "string" && unit.unit_name.trim()) {
-        names.push(unit.unit_name.trim());
-      }
-      for (const topic of unit?.topics ?? []) {
-        if (typeof topic?.topic_name === "string" && topic.topic_name.trim()) {
-          names.push(topic.topic_name.trim());
-        }
-        for (const sub of topic?.subtopics ?? []) {
-          if (typeof sub?.subtopic_name === "string" && sub.subtopic_name.trim()) {
-            names.push(sub.subtopic_name.trim());
-          }
-        }
-      }
-    }
-    return [...new Set(names)];
+  /** Fallback: addConcepts.js flat concepts treated as unit-like nodes (no topic/subtopic detail) */
+  if (Array.isArray(entry.concepts) && entry.concepts.length > 0) {
+    return entry.concepts
+      .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+      .map((name) => ({ name: name.trim(), unitData: { unit_name: name.trim() } }));
   }
   return [];
 }
@@ -88,17 +82,21 @@ export function buildGraphFromClass(entry: ClassEntry): {
   const centerNode: GraphNode = {
     id: centerId,
     name: className,
-    val: 36,
-    radius: 80,
+    val: 30,
+    radius: 85,
     targetRadius: 0,
     variant: "center",
   };
 
-  const concepts = extractConcepts(entry);
-  const conceptNodes: GraphNode[] = concepts.map((name) => {
-    const id = slugify(`${className}-${name}`);
-    const radius = 40 + (hash(id) % 16);
-    const targetRadius = 90 + (hash(id) % 110);
+  const units = extractUnits(entry);
+  const n = units.length;
+  const conceptNodes: GraphNode[] = units.map(({ name, unitData }, i) => {
+    const uniqueId = unitData?.unit_id ?? `unit-${i}`;
+    const id = slugify(`${className}-${uniqueId}`);
+    const radius = 48 + (hash(id) % 12);
+    const targetRadius = 110 + (hash(id) % 68);
+    const angle = n > 0 ? (2 * Math.PI * i) / n - Math.PI / 2 : 0;
+    const r = targetRadius;
     return {
       id,
       name,
@@ -106,6 +104,9 @@ export function buildGraphFromClass(entry: ClassEntry): {
       radius,
       targetRadius,
       variant: "concept" as const,
+      unitData,
+      x: Math.cos(angle) * r,
+      y: Math.sin(angle) * r,
     };
   });
 
@@ -113,4 +114,11 @@ export function buildGraphFromClass(entry: ClassEntry): {
   const links: GraphLink[] = conceptNodes.map((n) => ({ source: centerId, target: n.id }));
 
   return { nodes, links };
+}
+
+/** Get the graph node id for a unit (for selection/syncing with sidebar). */
+export function getUnitNodeId(classEntry: ClassEntry, unit: UnitEntry, index: number): string {
+  const className = typeof classEntry.className === "string" ? classEntry.className.trim() : "Course";
+  const uniqueId = unit?.unit_id ?? `unit-${index}`;
+  return slugify(`${className}-${uniqueId}`);
 }
