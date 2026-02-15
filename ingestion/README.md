@@ -147,7 +147,7 @@ Each unit has `unit_id`, `unit_name`, `chunk_count`, and `topics`; each topic ha
 
 **Stored JSON (multi-course):** All concept/learning-structure output is merged into **`public/classNames.json`** so the frontend has one file at the **course** level. Schema:
 
-- **`classes`**: array of `{ className, courseId, units }` — one entry per course; `units` is the full learning structure (unit → topic → subtopic with chunk counts).
+- **`classes`**: array of `{ className, courseId, units }`, one entry per course; `units` is the full learning structure (unit → topic → subtopic with chunk counts).
 - **`classNames`**: array of course display names (for backward compatibility with onboarding/dashboard).
 - **`updatedAt`**: ISO timestamp.
 

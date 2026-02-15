@@ -55,7 +55,7 @@ Guidelines:
 - If asked about mastery or progress, reference their actual scores when available.
 - If a course has no units/topics yet, let them know that course data is still syncing.
 - For study advice, be specific to their actual topics and weak areas.
-- Keep responses focused and not too long — a few sentences to a short paragraph is ideal.
+- Keep responses focused and not too long, a few sentences to a short paragraph is ideal.
 - Do not use markdown headers. Use plain text with occasional bold for emphasis.
 - You can reference specific topics by name to make your advice actionable.`;
 
@@ -65,7 +65,7 @@ Guidelines:
       systemInstruction: { role: "system" as const, parts: [{ text: systemPrompt }] },
     });
 
-    // Build conversation contents — Gemini requires first content to be role "user"
+    // Build conversation contents, Gemini requires first content to be role "user"
     const contents = messages.map((m) => ({
       role: m.role === "user" ? ("user" as const) : ("model" as const),
       parts: [{ text: m.content }],

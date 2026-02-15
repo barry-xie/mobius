@@ -1,4 +1,4 @@
-/** Shared quiz types — used by API route, service layer, and UI. */
+/** Shared quiz types, used by API route, service layer, and UI. */
 
 export type QuizQuestion = {
   id: string;

@@ -228,7 +228,7 @@ function ConceptSidebar({
                             <ul className="mt-2 space-y-1 pl-3.5">
                               {topic.subtopics.map((sub) => (
                                 <li key={sub.subtopic_id ?? sub.subtopic_name} className="text-[10px] leading-relaxed text-[#7a9bc7]">
-                                  {sub.subtopic_name ?? "—"}
+                                  {sub.subtopic_name ?? ","}
                                 </li>
                               ))}
                             </ul>

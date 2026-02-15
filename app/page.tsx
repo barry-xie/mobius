@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#fffbf9] font-sans">
-      {/* Nav — minimal bar, readable on hero and about */}
+      {/* Nav, minimal bar, readable on hero and about */}
       <header
         className="fixed left-4 right-4 top-4 z-20 flex items-center justify-between rounded-2xl px-4 py-3 backdrop-blur-md sm:left-6 sm:right-6 sm:px-6 md:left-8 md:right-8 md:px-8 lg:left-10 lg:right-10 lg:px-10"
         style={{ backgroundColor: "color-mix(in srgb, #fffbf9 97%, #537aad 3%)", boxShadow: "0 4px 24px rgba(83,122,173,0.15), 0 2px 8px rgba(0,0,0,0.06)" }}
@@ -33,7 +33,7 @@ export default function Home() {
         </nav>
       </header>
 
-      {/* Hero — full viewport, gradient overlay, content left */}
+      {/* Hero, full viewport, gradient overlay, content left */}
       <section className="relative flex min-h-screen flex-col justify-end overflow-hidden">
         <video
           className="absolute inset-0 h-full w-full object-cover object-top"
@@ -45,7 +45,7 @@ export default function Home() {
           playsInline
           aria-label="Background video of a torus knot"
         />
-        {/* Gradient overlay — dark at top, cream fade at bottom */}
+        {/* Gradient overlay, dark at top, cream fade at bottom */}
         <div
           className="absolute inset-0 z-[1]"
           style={{
@@ -137,13 +137,13 @@ export default function Home() {
             }}
           >
             <p>
-              knot uses the Canvas API to fetch your classes, syllabi, files, lecture notes, assignments, and upcoming exams. it builds a <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>roadmap with nodes</mark> for each assignment, exam, and topic, and links them to the material they cover.
+              Knot connects to <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>Canvas</mark> to pull your classes, syllabi, files, lecture notes, assignments, and exams. It ingests that material into a <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>RAG system</mark>: documents are chunked, embedded with <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>vector embeddings</mark>, and stored so each piece can be retrieved by <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>semantic similarity</mark>. That powers a <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>roadmap</mark> where units, topics, and assignments are nodes, linked to the material they cover.
             </p>
             <p>
-              we quiz you on general topics (or any specific one you want to practice), identify where you need the most help with <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>visual indicators</mark>, and surface the right material to fix it: lecture notes from Canvas, YouTube videos, and more. you pinpoint what you struggle with and focus there.
+              You take <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>diagnostic and practice quizzes</mark> on topics (or on specific exams you create). Knot identifies where you need the most help and shows it with <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>visual indicators</mark>. When you struggle, the <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>RAG pipeline</mark> retrieves the most relevant chunks from your course material, lecture notes, readings, assignment descriptions, and can surface them to help you focus. No more juggling.
             </p>
             <p>
-              all of it lives in one <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>intuitive, visual mindmap</mark> that connects topics and shows your <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>learning progress</mark>. one tool for your classes. no more juggling.
+              All of it lives in one <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>visual mindmap</mark> that connects topics and <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>tracks your progress</mark>.
             </p>
           </div>
           <p
@@ -154,7 +154,7 @@ export default function Home() {
               lineHeight: 1.4,
             }}
           >
-            you&apos;ll never need another tool to study for your classes again.
+            Knot is the <mark className="rounded px-0.5 text-[#537aad]" style={{ backgroundColor: "rgba(83,122,173,0.2)" }}>last study tool you will ever need</mark>.
           </p>
         </div>
       </section>

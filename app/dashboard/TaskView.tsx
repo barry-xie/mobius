@@ -233,7 +233,7 @@ export default function TaskView({ task, onClose, onDeleted, onEdit }: Props) {
         </div>
       </div>
 
-      {/* Footer actions — extra right padding to avoid overlap with chat button */}
+      {/* Footer actions, extra right padding to avoid overlap with chat button */}
       <div className="shrink-0 flex items-center justify-between border-t border-black/4 px-6 py-3 pr-16">
         <button
           type="button"

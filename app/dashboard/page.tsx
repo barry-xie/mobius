@@ -141,7 +141,7 @@ export default function DashboardPage() {
     return { nodes: [] as GraphNode[], links: [] as GraphLink[] };
   }, [selected?.type === "course" ? selected.classEntry : null]);
 
-  // All tasks — load from localStorage only after mount to avoid hydration mismatch
+  // All tasks, load from localStorage only after mount to avoid hydration mismatch
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   useEffect(() => {
     setAllTasks(getTasks());
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                           );
                           if (courseItem) setSelectedId(courseItem.id);
                         }}
-                        title={`${t.name} — ${t.courseName}`}
+                        title={`${t.name}, ${t.courseName}`}
                         className={`flex w-full items-center justify-between rounded-md px-2.5 py-[6px] text-left text-[11px] transition-all duration-150 ${
                           isTaskSelected
                             ? "bg-[#537aad]/10 font-medium text-[#537aad]"

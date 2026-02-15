@@ -306,7 +306,7 @@ export default function Quiz({
                   <span className="text-2xl font-bold tabular-nums text-[#537aad]">{finalScore}%</span>
                 </div>
                 <p className="text-[12px] font-medium text-[#537aad]">
-                  {finalScore >= 70 ? "Great work!" : finalScore >= 40 ? "Good effort — keep practicing!" : "Don't worry — practice makes perfect"}
+                  {finalScore >= 70 ? "Great work!" : finalScore >= 40 ? "Good effort, keep practicing!" : "Don't worry, practice makes perfect"}
                 </p>
               </div>
 
